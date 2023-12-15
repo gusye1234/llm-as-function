@@ -1,0 +1,4 @@
+rich
+erniebot
+pydantic
+python-dotenv
