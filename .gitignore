@@ -9,6 +9,7 @@ __pycache__/
 .env
 # C extensions
 *.so
+.gpt-readme.json
 
 # Distribution / packaging
 .Python
