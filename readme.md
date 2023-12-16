@@ -1,6 +1,6 @@
 <div align="center">
   <h1>llm-as-function</h1>
-  <p><strong>Embed your LLM into a python function</strong></p>
+  <p><strong>Embed LLM into your python function</strong></p>
   <p>
         <a href="https://pypi.org/project/llm-as-function/">
       <img src="https://img.shields.io/pypi/v/llm-as-function.svg">
@@ -9,7 +9,10 @@
 </div>
 
 
-`llm-as-function` 是一个帮助你快速构建基于LLM的函数的Python库. 你可以使用`LLMFunc`作为你函数的装饰器, 同时给你的函数进行类型标注和docstring的编写, `llm-as-function`会自动的通过调用大模型完成参数的填入, 并且返回格式化的输出.
+
+`llm-as-function` 是一个帮助你快速构建基于LLM的函数的Python库. 你可以使用`LLMFunc`作为你函数的装饰器, 同时给你的函数进行类型标注和docstring的编写, `llm-as-function`会自动的通过调用大模型完成参数的填入, 并且返回格式化的输出. 
+
+`llm-as-function`还支持在LLM函数中定义代码体, 用于精确的推理控制和业务逻辑.
 
 ## Get Started
 要使用llm_as_function代码库，首先需要安装它。可以按照以下步骤进行安装：
@@ -68,12 +71,10 @@ class Reason(BaseModel):
     where: str = Field(description="这个emoji可以用在哪些地方?")
     warning: str = Field(description="我使用这个emoji需要注意什么吗")
 
-
 class StructuredOutput(BaseModel):
     emoji: str = Field(description="随机输出的emoji")
     why: str = Field(description="为什么输出这个emoji")
     more: Reason = Field(description="更多关于这个emoji的信息")
-
 
 class Result(BaseModel):
     emoji: StructuredOutput = Field(description="随机输出一个emoji和他的相关的信息")
@@ -120,7 +121,7 @@ def fool() -> Result:
     print("Logging once")
 ```
 
-更有意思的是, 你可以当中调用别的函数, 别的LLM function (参考`examples/3_fibonacci.py`):
+更有意思的是, 你可以当中调用别的函数, 别的LLM function, 比如自己调用自己(参考`examples/3_fibonacci.py`):
 
 ```python
 from llm_as_function import LLMFunc, Final
