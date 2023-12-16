@@ -25,4 +25,13 @@ def fool() -> Result:
     pass
 
 
-print(fool())
+@LLMFunc()
+def fool2(emotion) -> Result:
+    """
+    你需要随机输出一个emoji, 我希望感情是{emotion}
+    """
+    pass
+
+
+# print(fool())
+print(fool2(emotion="开心"))

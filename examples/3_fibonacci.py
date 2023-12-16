@@ -20,8 +20,8 @@ class Result(BaseModel):
     value: int = Field(description="斐波那契数列计算的值")
 
 
-@LLMFunc().output(Result)
-def f(x: int):
+@LLMFunc()
+def f(x: int) -> Result:
     """
     你需要计算斐波那契数列的第{x}项, 你有他的前两项的值, 分别是{a}和{b}. 你计算第{x}项的方式是将前两项的值相加. 请你计算出第{x}项的值"""
     if x == 1 or x == 0:
