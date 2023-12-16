@@ -47,7 +47,7 @@ print(foo()) # {emoji: "😅"}
 
 你也可以动态的从在prompt中插入变量
 
-```
+```python
 @LLMFunc()
 def fool2(emotion) -> Result:
     """
@@ -117,7 +117,7 @@ def fool() -> Result:
     """
     你需要随机输出一个emoji
     """
-		print("Logging once")
+    print("Logging once")
 ```
 
 更有意思的是, 你可以当中调用别的函数, 别的LLM function (参考`examples/3_fibonacci.py`):
@@ -149,11 +149,12 @@ print(f(3)) # {value: 2}
 
 ## API
 
-```
+```python
 # LLMFunc目前只支持ernie bot相关的模型
-@LLMFunc(model="ernie-bot-4", temperature-0.3)
+
+@LLMFunc(model="ernie-bot-4", temperature=0.3)
 def fool() -> Result:
-		...
+    ...
 ```
 
 
