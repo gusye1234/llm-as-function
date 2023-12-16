@@ -2,3 +2,4 @@ rich
 erniebot
 pydantic
 python-dotenv
+gradio==4.10.0

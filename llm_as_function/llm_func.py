@@ -27,34 +27,26 @@ class Final:
 
 
 @dataclass
-class Step:
-    pack: dict
-
-    def unpack(self):
-        return self.pack
-
-
-@dataclass
 class LLMFunc:
-    input_schema: BaseModel | None = None
     output_schema: BaseModel | None = None
     output_json: dict | None = None
     prompt_template: str = ""
-    config = dict(
-        model="ernie-bot-4",
-    )
+    model: str = "ernie-bot-4"
+    temperature: float = 0.1
     deps: list = []
 
     def __post_init__(self):
+        self.config: dict = dict(model=self.model, temperature=self.temperature)
         self.provider = model_factory(self.config["model"])
+
+    def reset(self):
+        self.prompt_template = ""
+        self.output_schema = None
+        self.output_json = None
 
     def prompt(self, prompt_template):
         self.prompt_template = prompt_template.strip("\n ")
 
-        return self
-
-    def input(self, input_schema):
-        self.input_schema = input_schema
         return self
 
     def output(self, output_schema):
@@ -62,25 +54,40 @@ class LLMFunc:
         self.output_json = generate_schema_prompt(output_schema)
         return self
 
-    def post_output(self, func):
-        pass
-
-    def parse_output(self, output):
-        if self.provider == "ernie":
-            json_str = clean_output_parse_ernie(output)
-        output = self.output_schema(**json.loads(json_str)).model_dump()
+    def parse_output(self, output, output_schema):
+        try:
+            if self.provider == "ernie":
+                json_str = clean_output_parse_ernie(output)
+            output = output_schema(**json.loads(json_str)).model_dump()
+        except:
+            logger.error(f"Failed to parse output: {output}")
+            raise ValueError(f"Failed to parse output: {output}")
         return output
 
     def __call__(self, func):
         # parse input
-        if self.output_schema is None:
-            raise ValueError("You must specify the output schema")
+        return_annotation = func.__annotations__.get("return", None)
+        if return_annotation is not None:
+            assert issubclass(
+                return_annotation, BaseModel
+            ), "Return must be a Pydantic BaseModel"
+            self.output(return_annotation)
+        if self.output_schema is None and return_annotation is None:
+            raise ValueError(
+                "You must specify the output schema or the function return annotation"
+            )
         if self.prompt_template == "":
             if func.__doc__ is None:
                 raise ValueError(
                     "You must specify the prompt template or the function docstring"
                 )
             self.prompt(func.__doc__)
+
+        prompt_template = self.prompt_template
+        output_json = self.output_json
+        output_schema = self.output_schema
+
+        self.reset()
 
         def new_func(**kwargs):
             local_var = func(**kwargs)
@@ -89,25 +96,23 @@ class LLMFunc:
             if local_var is not None:
                 if isinstance(local_var, Final):
                     return local_var.unpack()
-                elif isinstance(local_var, Step):
-                    prompt = self.prompt_template.format(**kwargs, **local_var.unpack())
+                elif isinstance(local_var, dict):
+                    prompt = prompt_template.format(**kwargs, **local_var)
                 else:
                     raise NotImplementedError(
-                        f"UnSupported branch {type(local_var)}, please use one of the branch class: Final, Step"
+                        f"UnSupported branch {type(local_var)}, please use one of the branch class: Final, dict"
                     )
             else:
-                prompt = self.prompt_template.format(**kwargs)
-            if self.output_schema is not None:
-                prompt = prompt + OUTPUT_JSON_PROMPT.format(
-                    json_schema=self.output_json
-                )
+                prompt = prompt_template.format(**kwargs)
+            if output_json is not None:
+                prompt = prompt + OUTPUT_JSON_PROMPT.format(json_schema=output_json)
 
             logger.debug(prompt)
 
             if self.provider == "ernie":
-                raw_result = ernie_single_create(prompt)
+                raw_result = ernie_single_create(prompt, **self.config)
 
-            result = self.parse_output(raw_result)
+            result = self.parse_output(raw_result, output_schema)
             logger.debug(f"Return {result}")
 
             return result
