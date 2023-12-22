@@ -7,7 +7,7 @@ load_dotenv()
 
 import erniebot
 from pydantic import BaseModel, Field
-from llm_as_function import LLMFunc
+from llm_as_function import gpt35_func
 
 erniebot.api_type = "aistudio"
 erniebot.access_token = os.environ["ERNIE_KEY"]
@@ -17,7 +17,7 @@ class Result(BaseModel):
     emoji: str = Field(description="随机输出一个emoji")
 
 
-@LLMFunc()
+@gpt35_func
 def fool() -> Result:
     """
     你需要随机输出一个emoji
@@ -25,7 +25,7 @@ def fool() -> Result:
     pass
 
 
-@LLMFunc()
+@gpt35_func
 def fool2(emotion) -> Result:
     """
     你需要随机输出一个emoji, 我希望感情是{emotion}

@@ -28,5 +28,5 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.9",
-    install_requires=["rich", "erniebot", "pydantic"],
+    install_requires=["rich", "erniebot", "openai", "pydantic"],
 )

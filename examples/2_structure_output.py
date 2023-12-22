@@ -5,34 +5,30 @@ from dotenv import load_dotenv
 sys.path.append("../")
 load_dotenv()
 
-import erniebot
 from rich import print
 from pydantic import BaseModel, Field
-from llm_as_function import ernie_func
-
-erniebot.api_type = "aistudio"
-erniebot.access_token = os.environ["ERNIE_KEY"]
+from llm_as_function import gpt35_func
 
 
 class Reason(BaseModel):
-    where: str = Field(description="这个emoji可以用在哪些地方?")
-    warning: str = Field(description="我使用这个emoji需要注意什么吗")
+    where: str = Field(description="Where I can use this emoji?")
+    warning: str = Field(description="Anything I should notice to use this emoji?")
 
 
 class StructuredOutput(BaseModel):
-    emoji: str = Field(description="随机输出的emoji")
-    why: str = Field(description="为什么输出这个emoji")
-    more: Reason = Field(description="更多关于这个emoji的信息")
+    emoji: str = Field(description="The emoji")
+    why: str = Field(description="Why you choose this emoji?")
+    more: Reason = Field(description="More information about this emoji")
 
 
 class Result(BaseModel):
-    emoji: StructuredOutput = Field(description="随机输出一个emoji和他的相关的信息")
+    emoji: StructuredOutput = Field(description="The emoji and its related information")
 
 
-@ernie_func
+@gpt35_func
 def fool() -> Result:
     """
-    你需要随机输出一个emoji
+    You need to randomly output an emoji
     """
     pass
 

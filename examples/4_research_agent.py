@@ -36,7 +36,7 @@ def ask_question(query) -> FollowingQuestionResult:
     pass
 
 
-@ernie_func
+@LLMFunc()
 def research(query, current_layer=1, max_layer=2) -> Result:
     """你是一个严谨的作者, 你需要理解用户的关于问题 {query} 的调研并且进行要点提取汇总
     用户现在已经进行了如下的调研:
@@ -48,7 +48,7 @@ def research(query, current_layer=1, max_layer=2) -> Result:
         CURRENT_Q[f"layer_{current_layer}"] = [query]
     else:
         CURRENT_Q[f"layer_{current_layer}"].append(query)
-    pack = ask_question(query=query)
+    pack = ask_question(query=query).unpack()
     answer = pack["answer"]
 
     print(f"{query}: {answer}")
@@ -66,7 +66,7 @@ def research(query, current_layer=1, max_layer=2) -> Result:
                 question,
                 research(
                     query=question, current_layer=current_layer + 1, max_layer=max_layer
-                )["summary"],
+                ).unpack()["summary"],
             )
         )
 
@@ -79,13 +79,11 @@ def research(query, current_layer=1, max_layer=2) -> Result:
     return Final({"summary": f"{'#'*current_layer} {query}\n{answer}\n{sub_answer}"})
 
 
-# print(Markdown(research(query="大模型是什么?", max_layer=2)["summary"]))
-
 import gradio as gr
 
 
 def get_result(query, max_layer=2):
-    message = research(query=query, max_layer=max_layer)["summary"]
+    message = research(query=query, max_layer=max_layer).unpack()["summary"]
     return gr.Markdown(message)
 
 

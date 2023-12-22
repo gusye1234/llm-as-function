@@ -1,8 +1,11 @@
+import os
+from enum import StrEnum
 from pydantic import BaseModel
 from dataclasses import dataclass
 import json
-from .utils import generate_schema_prompt, logger, clean_output_parse_ernie
-from .models import ernie_single_create, ernie_single_acreate
+from openai import OpenAI
+from .utils import generate_schema_prompt, logger, clean_output_parse
+from .models import ernie_single_create, openai_single_create
 
 OUTPUT_JSON_PROMPT = """
 
@@ -16,28 +19,53 @@ def model_factory(model_name: str):
         return "ernie"
     if model_name.startswith("gpt"):
         return "openai"
+    raise NotImplementedError(
+        f"llm-as-function currently supports OpenAI or Ernie models, not {model_name}"
+    )
 
 
 @dataclass
 class Final:
-    pack: dict
+    pack: dict | None = None
+    raw_response: str | None = None
+
+    def ok(self):
+        return self.pack is not None
 
     def unpack(self):
-        return self.pack
+        if self.pack is not None:
+            return self.pack
+        return self.raw_response
 
 
 @dataclass
 class LLMFunc:
+    """Use LLM as a function"""
+
+    parse_mode: str = "error"
     output_schema: BaseModel | None = None
     output_json: dict | None = None
     prompt_template: str = ""
-    model: str = "ernie-bot-4"
+    model: str = "gpt-3.5-turbo-1106"
     temperature: float = 0.1
     deps: list = []
+    openai_api_key: str | None = None
+    openai_base_url: str | None = None
 
     def __post_init__(self):
+        assert self.parse_mode in [
+            "error",
+            "accept_raw",
+        ], f"Parse mode must in ['error', 'accept_raw'], not {self.parse_mode}"
         self.config: dict = dict(model=self.model, temperature=self.temperature)
         self.provider = model_factory(self.config["model"])
+        if self.provider == "openai":
+            assert (
+                self.openai_api_key != ""
+            ), "You must have OpenAI api key input, or set OPENAI_API_KEY in your environment."
+            self.openai_client = OpenAI(
+                api_key=self.openai_api_key, base_url=self.openai_base_url
+            )
 
     def reset(self):
         self.prompt_template = ""
@@ -56,13 +84,16 @@ class LLMFunc:
 
     def parse_output(self, output, output_schema):
         try:
-            if self.provider == "ernie":
-                json_str = clean_output_parse_ernie(output)
+            json_str = clean_output_parse(output)
             output = output_schema(**json.loads(json_str)).model_dump()
+            return Final(output)
         except:
             logger.error(f"Failed to parse output: {output}")
+            if self.parse_mode == "error":
+                raise ValueError(f"Failed to parse output: {output}")
+            elif self.parse_mode == "accept_raw":
+                return Final(raw_response=output)
             raise ValueError(f"Failed to parse output: {output}")
-        return output
 
     def __call__(self, func):
         # parse input
@@ -95,7 +126,7 @@ class LLMFunc:
             logger.debug(f"{kwargs}, {local_var}")
             if local_var is not None:
                 if isinstance(local_var, Final):
-                    return local_var.unpack()
+                    return local_var
                 elif isinstance(local_var, dict):
                     prompt = prompt_template.format(**kwargs, **local_var)
                 else:
@@ -111,7 +142,10 @@ class LLMFunc:
 
             if self.provider == "ernie":
                 raw_result = ernie_single_create(prompt, **self.config)
-
+            elif self.provider == "openai":
+                raw_result = openai_single_create(
+                    prompt, self.openai_client, **self.config
+                )
             result = self.parse_output(raw_result, output_schema)
             logger.debug(f"Return {result}")
 

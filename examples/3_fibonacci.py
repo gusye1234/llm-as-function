@@ -1,16 +1,13 @@
 import os
 import sys
 from dotenv import load_dotenv
+from rich import print
 
 sys.path.append("../")
 load_dotenv()
 
-import erniebot
 from pydantic import BaseModel, Field
-from llm_as_function import LLMFunc, Final
-
-erniebot.api_type = "aistudio"
-erniebot.access_token = os.environ["ERNIE_KEY"]
+from llm_as_function import gpt35_func, Final
 
 
 from time import sleep
@@ -20,17 +17,20 @@ class Result(BaseModel):
     value: int = Field(description="斐波那契数列计算的值")
 
 
-@LLMFunc()
+@gpt35_func
 def f(x: int) -> Result:
+    """You need to calculate the {x}th term of the Fibonacci sequence.
+    Given that you have the values of the two preceding terms, which are {a} and {b}. You calculate the {x}th term by adding the values of the two preceding terms. Please compute the value of the {x}th term.
     """
-    你需要计算斐波那契数列的第{x}项, 你有他的前两项的值, 分别是{a}和{b}. 你计算第{x}项的方式是将前两项的值相加. 请你计算出第{x}项的值"""
     if x == 1 or x == 0:
         return Final({"value": x})
+    print(f"Running {x-1}")
     a = f(x=x - 1)
-    sleep(1)
+    print(f"Running {x-2}")
     b = f(x=x - 2)
-    sleep(1)
-    return {"a": a["value"], "b": b["value"]}
+    a_value = a.unpack()["value"] if a.ok() else a.unpack()
+    b_value = b.unpack()["value"] if b.ok() else b.unpack()
+    return {"a": a_value, "b": b_value}
 
 
 print(f(x=3))

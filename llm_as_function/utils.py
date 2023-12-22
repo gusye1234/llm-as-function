@@ -44,7 +44,7 @@ def find_json_response(full_response, extract_type=dict):
     return extracted_str
 
 
-def clean_output_parse_ernie(llm_output: str):
+def clean_output_parse(llm_output: str):
     return find_json_response(llm_output.strip())
 
 
