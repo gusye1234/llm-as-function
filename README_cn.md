@@ -1,6 +1,6 @@
 <div align="center">
   <h1>llm-as-function</h1>
-  <p><strong>Embed LLM into your python function</strong></p>
+  <p><strong>LLM即函数：基于嵌入式LLM的Python编程框架</strong></p>
   <p>
         <a href="https://pypi.org/project/llm-as-function/">
       <img src="https://img.shields.io/pypi/v/llm-as-function.svg">
@@ -13,33 +13,27 @@
 
 [English](./README.md) | [简体中文](./README_cn.md)
 
+`llm-as-function` 是一个帮助你快速构建基于LLM的函数的Python库. 你可以使用`LLMFunc`作为你函数的装饰器, 同时给你的函数进行类型标注和docstring的编写, `llm-as-function`会自动的通过调用大模型完成参数的填入, 并且返回格式化的输出. 
 
+`llm-as-function`还支持在LLM函数中定义代码体, 用于精确的推理控制和业务逻辑.
 
-`llm-as-function` is a Python library that helps you quickly build functions based on Large Language Models (LLMs). You can use `LLMFunc` as a decorator for your functions, while also providing type annotations and writing docstrings for your functions. `llm-as-function` will automatically complete the parameter filling by invoking the large model and return formatted output.
-
-> `llm-as-function` 是一个帮助你快速构建基于LLM的函数的Python库. 你可以使用`LLMFunc`作为你函数的装饰器, 同时给你的函数进行类型标注和docstring的编写, `llm-as-function`会自动的通过调用大模型完成参数的填入, 并且返回格式化的输出. 
-
-The `llm-as-function` also supports defining code bodies within the LLM function for precise inference control and business logic.
-
-> `llm-as-function`还支持在LLM函数中定义代码体, 用于精确的推理控制和业务逻辑.
-
-## Get Started
+## 快速开始
 ```
 pip install llm-as-function
 ```
-## Features
+## 使用方式
 
-Basic usage: 
+基础用法: 
 
 ```python
-from llm_as_function import gpt35_func # gpt35_func using gpt-3.5-turbo as the LLM backend
+from llm_as_function import gpt35_func # 使用gpt-3.5-turbo作为LLM推理后端
 from pydantic import BaseModel, Field
 
-# Validate and Define output types with Pydantic
+# 定义输出格式
 class Result(BaseModel):
     emoji: str = Field(description="The output emoji")
 
-# Using decorators, LLMFunc will automatically recognize the input and output of your function, as well as the function's docstring.
+# 使用装饰器装饰你的函数，LLM会自动识别你的输入输出信息，并将你的注释信息看作Prompt
 # Here, the function's DocString is your Prompt, so please design it carefully.
 @gpt35_func
 def fool() -> Result:
@@ -51,7 +45,7 @@ def fool() -> Result:
 print(foo()) # {emoji: "😅"}
 ```
 
-You can also dynamically insert variables into the prompt.
+你同样可以使用类似于`f-string`的方式在注释中动态嵌入一些可变信息
 
 ```python
 @gpt35_func
