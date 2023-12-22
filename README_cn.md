@@ -34,7 +34,6 @@ class Result(BaseModel):
     emoji: str = Field(description="The output emoji")
 
 # 使用装饰器装饰你的函数，LLM会自动识别你的输入输出信息，并将你的注释信息看作Prompt
-# Here, the function's DocString is your Prompt, so please design it carefully.
 @gpt35_func
 def fool() -> Result:
     """
@@ -58,7 +57,7 @@ def fool2(emotion) -> Result:
 print(foo2(emotion="Happy")) # {'emoji': '😊'}
 ```
 
-You can construct more complex output logic.
+你同样可以组织一些更为复杂的输出结构：
 
 ```python
 class Reason(BaseModel):
@@ -81,11 +80,7 @@ def fool() -> Result:
     pass
 
 print(fool())
-```
-
-You will get the below output:
-
-```python
+"""
 Final(
     pack={
         'emoji': {
@@ -101,10 +96,10 @@ for all situations.'
     },
     raw_response=None
 )
-
+"""
 ```
 
-**The most crucial part** is that you can insert `python` code into your function, which will run before the actual LLM execution, so you can accomplish similar tasks:
+**更关键的是**你可以在函数中写入python语句，这些语句会在调用LLM之前执行，例如，下列代码在执行LLM之前输出一段日志信息。
 
 ```python
 @gpt35_func
@@ -115,7 +110,7 @@ def fool() -> Result:
     print("Logging once")
 ```
 
-More interestingly, you can invoke other functions within it, other LLM functions, such as calling itself (refer to `examples/3_fibonacci.py`):
+另外，你还可以在一个被LLM封装的函数中调用其他被LLM封装的函数，例如递归调用。（参考`examples/3_fibonacci.py`）
 
 ```python
 from llm_as_function import gpt35_func, Final
@@ -136,14 +131,14 @@ def f(x: int) -> Result:
 print(f(3)) # {value: 2}
 ```
 
-More demos in `examples/`
+更多样例请参考`examples/`
 
-## Docs
+## 详细介绍
 
-`LLMFunc`
+### `LLMFunc`
 
 ```python
-# LLMFunc currently support OpenAI provider, Ernie SDK(文心一言)
+# LLMFunc(LLM封装器)当前仅支持OpenAI provider和Ernie SDK(文心一言)
 @LLMFunc(model="gpt-3.5-turbo-1106", temperature=0.3, openai_base_url=..., openai_api_key=...)
 def fool() -> Result:
     ...
@@ -151,29 +146,29 @@ def fool() -> Result:
 def fool() -> Result:
     ...
     
-# For your convenience, llm-as-function already instantiated some LLMFunc
+# 方便起见，本项目已经实例化一些封装器，你可以直接使用gpt35_func, gpt4_func, ernie_funcx，而无需调用LLMFunc
 from llm_as_function import gpt35_func, gpt4_func, ernie_funcx
 
 @gpt35_func
 def fool() -> Result:
     ...
     
-# Parse mode: ["error", "accept_raw"], default "error"
-# llm-as-function may fail to return the result format, due to LLM doesn't always obey
-# When the parsing fails, there are two mode you can choose:
+# 解析模式共两种: ["error", "accept_raw"], 默认为 "error"
+# llm-as-function可能无法永远遵循输出格式要求（这取决于对应的LLM的性能）
+# 当解析出错时，这两种模式会产生不同的结果：
 
 @LLMFunc(parse_mode="error")
 def fool() -> Result:
     ...
-result = fool() # When the parsing fails, fool will raise an error
+result = fool() # 解析出错时，fool会抛出异常
 
 @LLMFunc(parse_mode="accept_raw")
 def fool() -> Result:
     ...
-result = fool() # When the parsing fails, fool will not raise an error but return the raw response of LLM, refer to the `Final` class
+result = fool() # 解析出错时，fool不会抛出异常，但是会返回LLM的回复内容，更多细节见`Final`模块
 ```
 
-`Final`
+### `Final`
 
 ```python
 # The return value of any llm function is a `Final` class
@@ -187,7 +182,7 @@ else:
 
 ## FQA
 
-* The formatting of the return from `llm-as-function` depends on the capabilities of the model you are using. Sometimes, larger models may not be able to return a parsable JSON format, which can lead to an Error or return the raw response if you set the `parse_mode="accept_raw"`.
+* `llm-as-function`能否按照既定格式返回信息主要取决于使用的模型性能，有时，LLM无法按照指定格式返回信息，从而抛出异常，你可以设置`parse_mode="accept_raw"`以获得模型返回的原始信息，从而避免抛出异常。
 
 * 当`llm-as-function`使用的是`ernie-bot-4`, 其API的访问对于rate limit限制的比较狠, 如果你遇到如下的Error
 
