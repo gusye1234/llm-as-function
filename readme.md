@@ -29,7 +29,7 @@ Basic usage:
 from llm_as_function import gpt35_func # gpt35_func using gpt-3.5-turbo as the LLM backend
 from pydantic import BaseModel, Field
 
-# Validate and Define Input Types with Pydantic
+# Validate and Define output types with Pydantic
 class Result(BaseModel):
     emoji: str = Field(description="The output emoji")
 
@@ -159,7 +159,7 @@ def fool() -> Result:
     ...
     
 # Parse mode: ["error", "accept_raw"], default "error"
-# llm-as-function may fail to return the result format, due to LLM is not always obey
+# llm-as-function may fail to return the result format, due to LLM doesn't always obey
 # When the parsing fails, there are two mode you can choose:
 
 @LLMFunc(parse_mode="error")
@@ -182,7 +182,7 @@ result: Final = fool()
 if result.ok():
   format_response = result.unpack() # the response will be a formated dict
 else:
-	raw_response = result.unpack() # the response will be the raw string result from LLM
+  raw_response = result.unpack() # the response will be the raw string result from LLM
 ```
 
 ## FQA
