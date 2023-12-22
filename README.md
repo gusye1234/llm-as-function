@@ -11,7 +11,8 @@
 
 --------------------------------------------------------------------------------
 
-English | [简体中文](./README_cn.md)
+[English](./README.md) | [简体中文](./README_cn.md)
+
 
 
 `llm-as-function` is a Python library that helps you quickly build functions based on Large Language Models (LLMs). You can use `LLMFunc` as a decorator for your functions, while also providing type annotations and writing docstrings for your functions. `llm-as-function` will automatically complete the parameter filling by invoking the large model and return formatted output.
