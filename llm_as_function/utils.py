@@ -1,4 +1,7 @@
 import os
+import inspect
+import asyncio
+from functools import wraps
 from types import UnionType
 from pydantic import BaseModel
 from re import DOTALL, finditer
@@ -87,3 +90,29 @@ def generate_schema_prompt(schema: Type[BaseModel]) -> str:
         return "{\n" + ",\n".join(payload) + "\n}"
 
     return generate_payload(schema)
+
+
+class GlobalGPTBin:
+    """The restriction for accessing the async GPT(acreate) is that only a maximum of max_size GPTs can be accessed at the same time."""
+
+    def __init__(self, max_size=8, waiting_time=0.1) -> None:
+        self.max_size = max_size
+        self._current_bin = 0
+        self.waiting_time = waiting_time
+
+    def __call__(self, func):
+        assert inspect.iscoroutinefunction(func), "func must be a coroutine function"
+
+        # @wraps(func)
+        async def wait_func(*args, **kwargs):
+            while True:
+                if self._current_bin < self.max_size:
+                    self._current_bin += 1
+                    break
+                await asyncio.sleep(self.waiting_time)
+            logger.debug(f"Calling LLM [{self._current_bin}]/[{self.max_size}]")
+            result = await func(*args, **kwargs)
+            self._current_bin -= 1
+            return result
+
+        return wait_func
