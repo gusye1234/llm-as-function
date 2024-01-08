@@ -11,7 +11,7 @@ JSON_SCHEMA_PROMPT = {
 """,
     "openai": """
 
-!!! You must output your results in the following JSON schema:
+!!! You must output your results in the following JSON schema. Strictly adhere to the following JSON schema, and do not return a list in this format:
 {json_schema}
 """,
 }

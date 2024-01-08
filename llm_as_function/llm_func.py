@@ -306,7 +306,7 @@ class LLMFunc:
             raw_result: ChatCompletionMessage = raw_result.choices[0].message
             if raw_result.tool_calls is None:
                 return raw_result.content
-            return self._async_function_call_branch(
+            return await self._async_function_call_branch(
                 prompt, raw_result, runtime_options, fn_callings
             )
         raise NotImplementedError(f"Provider [{self.provider}] is not supported yet")
@@ -330,12 +330,14 @@ class LLMFunc:
             )
         elif self.provider == "openai":
             raw_result: ChatCompletionMessage = (
-                await openai_single_acreate(
-                    prompt,
-                    self.openai_async_client,
-                    runtime_options=runtime_options,
-                    function_messages=function_messages,
-                    **self.config,
+                (
+                    await self.async_models["openai"](
+                        prompt,
+                        self.openai_async_client,
+                        runtime_options=runtime_options,
+                        function_messages=function_messages,
+                        **self.config,
+                    )
                 )
                 .choices[0]
                 .message
@@ -402,13 +404,15 @@ class LLMFunc:
                 local_var = await func(**kwargs)
             else:
                 local_var = func(**kwargs)
-            logger.debug(f"{kwargs}, {local_var}")
+            logger.debug(f"[Variables] function args:{kwargs}, local vars: {local_var}")
 
             prompt = self._fill_prompt(kwargs, local_var, prompt_template)
             prompt = self._append_json_schema(prompt, output_json)
             logger.debug(prompt)
 
-            raw_result = await self._provider_async_response(prompt)
+            raw_result = await self._provider_async_response(
+                prompt, runtime_options=runtime_options, fn_callings=fn_callings
+            )
             result = self.parse_output(raw_result, output_schema)
             logger.debug(f"Return {result}")
 

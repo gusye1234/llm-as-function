@@ -5,14 +5,19 @@ sys.path.append("../")
 os.environ["LEVEL"] = "DEBUG"
 from llm_as_function import gpt35_func
 import json
+import asyncio
 from pydantic import BaseModel, Field
 
 
 class Result(BaseModel):
-    weather_summary: str = Field(description="The summary of the weather")
+    summary: str = Field(description="The response summary sentence")
 
 
 class GetCurrentWeatherRequest(BaseModel):
+    location: str = Field(description="The city and state, e.g. San Francisco, CA")
+
+
+class GetCurrentTimeRequest(BaseModel):
     location: str = Field(description="The city and state, e.g. San Francisco, CA")
 
 
@@ -28,18 +33,40 @@ def get_current_weather(request: GetCurrentWeatherRequest):
     return json.dumps(weather_info)
 
 
+def get_current_time(request: GetCurrentTimeRequest):
+    """
+    Get the current time in a given location
+    """
+    time_info = {
+        "location": request.location,
+        "time": "2024/1/1",
+    }
+    return json.dumps(time_info)
+
+
 # ! Only support openai model yet, ernie(文心一言) is not supported.
-@gpt35_func.func(get_current_weather)
+@gpt35_func.func(get_current_weather).func(get_current_time)
 def fool() -> Result:
     """
-    Search the weather of New York. And then summarize the weather situation.
-    Be careful, you should not call a function twice.
+    Search the weather and current time of New York. And then summary the time and weather one sentence.
+    Be careful, you should not call the same function twice.
+    """
+    pass
+
+
+@gpt35_func.func(get_current_weather).func(get_current_time).async_call
+def fool2() -> Result:
+    """
+    Search the weather and current time of New York. And then summary the time and weather one sentence.
+    Be careful, you should not call the same function twice.
     """
     pass
 
 
 def fn_calling():
     result = fool().unpack()
+    print(result)
+    result = asyncio.run(fool2()).unpack()
     print(result)
 
 

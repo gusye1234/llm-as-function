@@ -5,10 +5,14 @@ from pydantic import BaseModel, Field
 
 
 class Result(BaseModel):
-    weather_summary: str = Field(description="The summary of the weather")
+    summary: str = Field(description="The response summary sentence")
 
 
 class GetCurrentWeatherRequest(BaseModel):
+    location: str = Field(description="The city and state, e.g. San Francisco, CA")
+
+
+class GetCurrentTimeRequest(BaseModel):
     location: str = Field(description="The city and state, e.g. San Francisco, CA")
 
 
@@ -24,29 +28,36 @@ def get_current_weather(request: GetCurrentWeatherRequest):
     return json.dumps(weather_info)
 
 
-@gpt35_func.func(get_current_weather)
-def fool() -> Result:
+def get_current_time(request: GetCurrentTimeRequest):
     """
-    你需要调用get_current_weather函数, 然后汇报下New York. 请注意, 你需要对天气情况进行文字总结
-    注意, 一个函数最多调用一次
+    Get the current time in a given location
     """
-    pass
-
-
-@gpt35_func.func(get_current_weather).async_call
-def fool2() -> Result:
-    """
-    你需要调用get_current_weather函数, 然后汇报下New York. 请注意, 你需要对天气情况进行文字总结
-    注意, 一个函数最多调用一次
-    """
-    pass
+    time_info = {
+        "location": request.location,
+        "time": "2024/1/1",
+    }
+    return json.dumps(time_info)
 
 
 def test_fn_calling():
+    @gpt35_func.func(get_current_weather).func(get_current_time)
+    def fool() -> Result:
+        """Search the weather and current time of New York. And then summary the time and weather one sentence.
+        Be careful, you should not call the same function twice.
+        """
+        pass
+
     result = fool().unpack()
     print(result)
 
 
 def test_fn_async_calling():
+    @gpt35_func.func(get_current_weather).func(get_current_time).async_call
+    def fool2() -> Result:
+        """Search the weather and current time of New York. And then summary the time and weather one sentence.
+        Be careful, you should not call the same function twice.
+        """
+        pass
+
     result = asyncio.run(fool2()).unpack()
     print(result)
