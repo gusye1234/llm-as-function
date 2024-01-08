@@ -23,7 +23,7 @@ pip install llm-as-function
 ```
 ## 使用方式
 
-基础用法: 
+### 基础用法
 
 ```python
 from llm_as_function import gpt35_func # 使用gpt-3.5-turbo作为LLM推理后端
@@ -42,19 +42,6 @@ def fool() -> Result:
     pass
   
 print(foo()) # {emoji: "😅"}
-```
-
-你同样可以使用类似于`f-string`的方式在注释中动态嵌入一些可变信息
-
-```python
-@gpt35_func
-def fool2(emotion) -> Result:
-    """
-    You need to randomly output an emoji, the emoji should be {emotion}
-    """
-    pass
-  
-print(foo2(emotion="Happy")) # {'emoji': '😊'}
 ```
 
 你同样可以组织一些更为复杂的输出结构：
@@ -99,6 +86,23 @@ for all situations.'
 """
 ```
 
+### 动态Prompt变量
+
+你同样可以在prompt中动态嵌入一些可变信息
+
+```python
+@gpt35_func
+def fool2(emotion) -> Result:
+    """
+    You need to randomly output an emoji, the emoji should be {emotion}
+    """
+    pass
+  
+print(foo2(emotion="Happy")) # {'emoji': '😊'}
+```
+
+### 代码与LLM有机结合
+
 **更关键的是**你可以在函数中写入python语句，这些语句会在调用LLM之前执行，例如，下列代码在执行LLM之前输出一段日志信息。
 
 ```python
@@ -131,6 +135,83 @@ def f(x: int) -> Result:
 print(f(3)) # {value: 2}
 ```
 
+### Function calling
+
+`llm-as-function` 提供了一种相似的嵌入大模型工具函数的方式(`examples/5_function_calling.py`)
+
+```python
+class Result(BaseModel):
+    summary: str = Field(description="The response summary sentence")
+
+class GetCurrentWeatherRequest(BaseModel):
+    location: str = Field(description="The city and state, e.g. San Francisco, CA")
+
+def get_current_weather(request: GetCurrentWeatherRequest):
+    """
+    Get the current weather in a given location
+    """
+    weather_info = {
+        "location": request.location,
+        "temperature": "72",
+        "forecast": ["sunny", "windy"],
+    }
+    return json.dumps(weather_info)
+
+# ! Only support openai model yet, ernie(文心一言) is not supported.
+@gpt35_func.func(get_current_weather)
+def fool() -> Result:
+    """
+    Search the weather of New York. And then summary the weather in one sentence.
+    Be careful, you should not call the same function twice.
+    """
+    pass
+```
+
+OpenAI的[Parallel function calling](https://platform.openai.com/docs/guides/function-calling/parallel-function-calling)也支持:
+
+```python
+def get_current_time(request: GetCurrentTimeRequest):
+    """
+    Get the current time in a given location
+    """
+    time_info = {
+        "location": request.location,
+        "time": "2024/1/1",
+    }
+    return json.dumps(time_info)
+  
+@gpt35_func.func(get_current_weather).func(get_current_time)
+def fool() -> Result:
+    """
+    Search the weather and current time of New York. And then summary the time and weather in one sentence.
+    Be careful, you should not call the same function twice.
+    """
+    pass
+```
+
+### Async Call
+
+Async calling也是支持的, 你只需要简单的在装饰语句中添加 `async_call` , llm function便是一个async python函数 (`examples/1.5_get_started.py`):
+
+```python
+@gpt35_func.async_call
+def fool(emotion) -> Result:
+    """
+    You need to output an emoji, which is {emotion}
+    """
+    pass
+    
+async def async_call():
+    result = await asyncio.gather(
+        *[
+            asyncio.create_task(fool(emotion="happy")),
+            asyncio.create_task(fool(emotion="sad")),
+            asyncio.create_task(fool(emotion="weird")),
+        ]
+    )
+    print([r.unpack() for r in result])
+```
+
 更多样例请参考`examples/`
 
 ## 详细介绍
@@ -145,14 +226,15 @@ def fool() -> Result:
 @LLMFunc(model="ernie-bot-4", temperature=0.3)
 def fool() -> Result:
     ...
-    
+
+-----------------------------------------------------
 # 方便起见，本项目已经实例化一些封装器，你可以直接使用gpt35_func, gpt4_func, ernie_funcx，而无需调用LLMFunc
 from llm_as_function import gpt35_func, gpt4_func, ernie_funcx
 
 @gpt35_func
 def fool() -> Result:
-    ...
-    
+    pass
+-----------------------------------------------------
 # 解析模式共两种: ["error", "accept_raw"], 默认为 "error"
 # llm-as-function可能无法永远遵循输出格式要求（这取决于对应的LLM的性能）
 # 当解析出错时，这两种模式会产生不同的结果：
@@ -165,7 +247,7 @@ result = fool() # 解析出错时，fool会抛出异常
 @LLMFunc(parse_mode="accept_raw")
 def fool() -> Result:
     ...
-result = fool() # 解析出错时，fool不会抛出异常，但是会返回LLM的回复内容，更多细节见`Final`模块
+result = fool() # 解析出错时，fool不会抛出异常，但是会返回LLM的原始回复，更多细节见`Final`模块
 ```
 
 ### `Final`

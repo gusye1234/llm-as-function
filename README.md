@@ -29,7 +29,7 @@ pip install llm-as-function
 ```
 ## Features
 
-Basic usage: 
+### Basic usage
 
 ```python
 from llm_as_function import gpt35_func # gpt35_func using gpt-3.5-turbo as the LLM backend
@@ -49,19 +49,6 @@ def fool() -> Result:
     pass
   
 print(foo()) # {emoji: "😅"}
-```
-
-You can also dynamically insert variables into the prompt.
-
-```python
-@gpt35_func
-def fool2(emotion) -> Result:
-    """
-    You need to randomly output an emoji, the emoji should be {emotion}
-    """
-    pass
-  
-print(foo2(emotion="Happy")) # {'emoji': '😊'}
 ```
 
 You can construct more complex output logic.
@@ -110,6 +97,23 @@ for all situations.'
 
 ```
 
+### Prompt variables
+
+You can also dynamically insert variables into the prompt.
+
+```python
+@gpt35_func
+def fool2(emotion) -> Result:
+    """
+    You need to randomly output an emoji, the emoji should be {emotion}
+    """
+    pass
+  
+print(foo2(emotion="Happy")) # {'emoji': '😊'}
+```
+
+### Merge program with LLM
+
 **The most crucial part** is that you can insert `python` code into your function, which will run before the actual LLM execution, so you can accomplish similar tasks:
 
 ```python
@@ -142,6 +146,84 @@ def f(x: int) -> Result:
 print(f(3)) # {value: 2}
 ```
 
+### Function calling
+
+`llm-as-function` offer the samilar way to tell LLM a series of function tools(`examples/5_function_calling.py`)
+
+```python
+class Result(BaseModel):
+    summary: str = Field(description="The response summary sentence")
+
+
+class GetCurrentWeatherRequest(BaseModel):
+    location: str = Field(description="The city and state, e.g. San Francisco, CA")
+
+def get_current_weather(request: GetCurrentWeatherRequest):
+    """
+    Get the current weather in a given location
+    """
+    weather_info = {
+        "location": request.location,
+        "temperature": "72",
+        "forecast": ["sunny", "windy"],
+    }
+    return json.dumps(weather_info)
+
+# ! Only support openai model yet, ernie(文心一言) is not supported.
+@gpt35_func.func(get_current_weather)
+def fool() -> Result:
+    """
+    Search the weather of New York. And then summary the weather in one sentence.
+    Be careful, you should not call the same function twice.
+    """
+    pass
+```
+
+[Parallel function calling](https://platform.openai.com/docs/guides/function-calling/parallel-function-calling) for OpenAI is supported:
+
+```python
+def get_current_time(request: GetCurrentTimeRequest):
+    """
+    Get the current time in a given location
+    """
+    time_info = {
+        "location": request.location,
+        "time": "2024/1/1",
+    }
+    return json.dumps(time_info)
+  
+@gpt35_func.func(get_current_weather).func(get_current_time)
+def fool() -> Result:
+    """
+    Search the weather and current time of New York. And then summary the time and weather in one sentence.
+    Be careful, you should not call the same function twice.
+    """
+    pass
+```
+
+### Async Call
+
+Async calling for LLM api is supported, you call simply add `async_call` then the function will be an async python function(`examples/1.5_get_started.py`):
+
+```python
+@gpt35_func.async_call
+def fool(emotion) -> Result:
+    """
+    You need to output an emoji, which is {emotion}
+    """
+    pass
+    
+async def async_call():
+    result = await asyncio.gather(
+        *[
+            asyncio.create_task(fool(emotion="happy")),
+            asyncio.create_task(fool(emotion="sad")),
+            asyncio.create_task(fool(emotion="weird")),
+        ]
+    )
+    print([r.unpack() for r in result])
+```
+
 More demos in `examples/`
 
 ## Docs
@@ -156,14 +238,15 @@ def fool() -> Result:
 @LLMFunc(model="ernie-bot-4", temperature=0.3)
 def fool() -> Result:
     ...
-    
+
+-----------------------------------------------------
 # For your convenience, llm-as-function already instantiated some LLMFunc
 from llm_as_function import gpt35_func, gpt4_func, ernie_funcx
 
 @gpt35_func
 def fool() -> Result:
-    ...
-    
+    pass
+-----------------------------------------------------
 # Parse mode: ["error", "accept_raw"], default "error"
 # llm-as-function may fail to return the result format, due to LLM doesn't always obey
 # When the parsing fails, there are two mode you can choose:
