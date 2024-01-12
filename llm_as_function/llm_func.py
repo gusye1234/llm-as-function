@@ -1,22 +1,22 @@
 import inspect
-from enum import StrEnum
-from pydantic import BaseModel, ValidationError
-from dataclasses import dataclass, field
 import json
 from copy import copy
-from openai import OpenAI, AsyncOpenAI
-from openai.types.chat import ChatCompletionMessage
+from dataclasses import dataclass, field
+from enum import StrEnum
 from functools import wraps
-from .utils import generate_schema_prompt, logger, clean_output_parse, GlobalGPTBin
-from .fn_calling import parse_function, function_to_name, get_argument_for_function
+
+from openai import AsyncOpenAI, OpenAI
+from openai.types.chat import ChatCompletionMessage
+from pydantic import BaseModel, ValidationError
+
 from .errors import InvalidFunctionParameters, InvalidLLMResponse
-from .models import (
-    ernie_single_create,
-    openai_single_create,
-    ernie_single_acreate,
-    openai_single_acreate,
-    JSON_SCHEMA_PROMPT,
-)
+from .fn_calling import (function_to_name, get_argument_for_function,
+                         parse_function)
+from .models import (JSON_SCHEMA_PROMPT, ernie_single_acreate,
+                     ernie_single_create, openai_single_acreate,
+                     openai_single_create)
+from .utils import (GlobalGPTBin, clean_output_parse, generate_schema_prompt,
+                    logger)
 
 
 def model_factory(model_name: str):
@@ -283,7 +283,7 @@ class LLMFunc:
             if raw_result.tool_calls is None:
                 return raw_result.content
             return self._function_call_branch(
-                prompt, raw_result, runtime_options, fn_callings
+                prompt, raw_result, runtime_options, fn_callings, function_messages
             )
         raise NotImplementedError(
             f"Function calling for provider [{self.provider}] is not supported yet"
@@ -345,7 +345,7 @@ class LLMFunc:
             if raw_result.tool_calls is None:
                 return raw_result.content
             return await self._async_function_call_branch(
-                prompt, raw_result, runtime_options, fn_callings
+                prompt, raw_result, runtime_options, fn_callings, function_messages
             )
         raise NotImplementedError(
             f"Function calling for provider [{self.provider}] is not supported yet"
