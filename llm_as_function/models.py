@@ -76,6 +76,7 @@ def openai_single_create(
             )
             return response
         except Exception as e:
+            retry += 1
             logger.error(e)
             logger.warning(f"Failed {retry} times, retrying...")
     raise openai.APIConnectionError("Max retry is reached")
