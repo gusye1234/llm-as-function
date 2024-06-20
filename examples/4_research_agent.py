@@ -5,21 +5,18 @@ from dotenv import load_dotenv
 sys.path.append("../")
 load_dotenv()
 
-import erniebot
 from pydantic import BaseModel, Field
-from llm_as_function import ernie_func, Final, LLMFunc
+from llm_as_function import Final, LLMFunc
 from llm_as_function.utils import logger
 from rich import print
 from rich.markdown import Markdown
 
 
-erniebot.api_type = "aistudio"
-erniebot.access_token = os.environ["ERNIE_KEY"]
-
-
 class FollowingQuestionResult(BaseModel):
     answer: str = Field(description="用户问题的回答")
-    following_questions: list[str] = Field(description="针对用户的问题, 提出一系列进一步完善这个问题的追问")
+    following_questions: list[str] = Field(
+        description="针对用户的问题, 提出一系列进一步完善这个问题的追问"
+    )
 
 
 class Result(BaseModel):

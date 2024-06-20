@@ -44,7 +44,6 @@ def get_current_time(request: GetCurrentTimeRequest):
     return json.dumps(time_info)
 
 
-# ! Only support openai model yet, ernie(文心一言) is not supported.
 @gpt35_func.func(get_current_weather).func(get_current_time)
 def fool() -> Result:
     """

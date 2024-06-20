@@ -157,7 +157,6 @@ def get_current_weather(request: GetCurrentWeatherRequest):
     }
     return json.dumps(weather_info)
 
-# ! Only support openai model yet, ernie(文心一言) is not supported.
 @gpt35_func.func(get_current_weather)
 def fool() -> Result:
     """
@@ -219,17 +218,14 @@ async def async_call():
 ### `LLMFunc`
 
 ```python
-# LLMFunc(LLM封装器)当前仅支持OpenAI provider和Ernie SDK(文心一言)
+# LLMFunc(LLM封装器)当前仅支持OpenAI provider
 @LLMFunc(model="gpt-3.5-turbo-1106", temperature=0.3, openai_base_url=..., openai_api_key=...)
-def fool() -> Result:
-    ...
-@LLMFunc(model="ernie-bot-4", temperature=0.3)
 def fool() -> Result:
     ...
 
 -----------------------------------------------------
-# 方便起见，本项目已经实例化一些封装器，你可以直接使用gpt35_func, gpt4_func, ernie_funcx，而无需调用LLMFunc
-from llm_as_function import gpt35_func, gpt4_func, ernie_funcx
+# 方便起见，本项目已经实例化一些封装器，你可以直接使用gpt35_func, gpt4_func
+from llm_as_function import gpt35_func, gpt4_func
 
 @gpt35_func
 def fool() -> Result:
@@ -265,11 +261,5 @@ else:
 ## FQA
 
 * `llm-as-function`能否按照既定格式返回信息主要取决于使用的模型性能，有时，LLM无法按照指定格式返回信息，从而抛出异常，你可以设置`parse_mode="accept_raw"`以获得模型返回的原始信息，从而避免抛出异常。
-
-* 当`llm-as-function`使用的是`ernie-bot-4`, 其API的访问对于rate limit限制的比较狠, 如果你遇到如下的Error
-
-  ```
-  erniebot.errors.APIError: Max retry is reached
-  ```
 
   代表你遇到rate limit限制了, 考虑进行换模型或者在每次使用function后sleep一段时间

@@ -92,7 +92,7 @@ def generate_schema_prompt(schema: Type[BaseModel]) -> str:
     return generate_payload(schema)
 
 
-class GlobalGPTBin:
+class LimitAPICalling:
     """The restriction for accessing the async GPT(acreate) is that only a maximum of max_size GPTs can be accessed at the same time."""
 
     def __init__(self, max_size=8, waiting_time=0.1) -> None:
@@ -103,7 +103,7 @@ class GlobalGPTBin:
     def __call__(self, func):
         assert inspect.iscoroutinefunction(func), "func must be a coroutine function"
 
-        # @wraps(func)
+        @wraps(func)
         async def wait_func(*args, **kwargs):
             while True:
                 if self._current_bin < self.max_size:

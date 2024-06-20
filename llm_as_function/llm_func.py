@@ -10,22 +10,20 @@ from openai.types.chat import ChatCompletionMessage
 from pydantic import BaseModel, ValidationError
 
 from .errors import InvalidFunctionParameters, InvalidLLMResponse
-from .fn_calling import (function_to_name, get_argument_for_function,
-                         parse_function)
-from .models import (JSON_SCHEMA_PROMPT, ernie_single_acreate,
-                     ernie_single_create, openai_single_acreate,
-                     openai_single_create)
-from .utils import (GlobalGPTBin, clean_output_parse, generate_schema_prompt,
-                    logger)
+from .fn_calling import function_to_name, get_argument_for_function, parse_function
+from .models import (
+    JSON_SCHEMA_PROMPT,
+    openai_single_acreate,
+    openai_single_create,
+)
+from .utils import LimitAPICalling, clean_output_parse, generate_schema_prompt, logger
 
 
 def model_factory(model_name: str):
-    if model_name.startswith("ernie"):
-        return "ernie"
     if model_name.startswith("gpt"):
         return "openai"
     raise NotImplementedError(
-        f"llm-as-function currently supports OpenAI or Ernie models, not {model_name}"
+        f"llm-as-function currently supports OpenAI models, not {model_name}"
     )
 
 
@@ -82,14 +80,10 @@ class LLMFunc:
             )
         if self.async_max_time is None:
             self.async_models["openai"] = openai_single_acreate
-            self.async_models["ernie"] = ernie_single_acreate
         else:
-            self.async_models["openai"] = GlobalGPTBin(
+            self.async_models["openai"] = LimitAPICalling(
                 max_size=self.async_max_time, waiting_time=self.async_wait_time
             )(openai_single_acreate)
-            self.async_models["ernie"] = GlobalGPTBin(
-                max_size=self.async_max_time, waiting_time=self.async_wait_time
-            )(ernie_single_acreate)
 
     def reset(self):
         self.prompt_template = ""
@@ -105,8 +99,10 @@ class LLMFunc:
         return self
 
     def func(self, func):
-        if self.provider == "ernie":
-            raise NotImplementedError("Function calling for ernie is not supported yet")
+        if self.provider != "openai":
+            raise NotImplementedError(
+                f"Function calling for {self.provider} is not supported yet"
+            )
         self.fn_callings[function_to_name(func)] = func
 
         func_desc = parse_function(func)
@@ -177,12 +173,7 @@ class LLMFunc:
 
     def _provider_response(self, prompt, runtime_options={}, fn_callings={}):
         logger.debug(runtime_options)
-        if self.provider == "ernie":
-            raw_result = ernie_single_create(
-                prompt, runtime_options=runtime_options, **self.config
-            )
-            return raw_result
-        elif self.provider == "openai":
+        if self.provider == "openai":
             raw_result: ChatCompletionMessage = (
                 openai_single_create(
                     prompt,
@@ -263,12 +254,7 @@ class LLMFunc:
             tool_message, fn_callings, history_messages
         )
         logger.debug(f"Function message {function_messages}")
-
-        if self.provider == "ernie":
-            raise NotImplementedError(
-                f"Function calling for provider [{self.provider}] is not supported yet"
-            )
-        elif self.provider == "openai":
+        if self.provider == "openai":
             raw_result: ChatCompletionMessage = (
                 openai_single_create(
                     prompt,
@@ -292,11 +278,7 @@ class LLMFunc:
     async def _provider_async_response(
         self, prompt, runtime_options={}, fn_callings={}
     ):
-        if self.provider == "ernie":
-            raw_result = await self.async_models["ernie"](
-                prompt, runtime_options=runtime_options, **self.config
-            )
-        elif self.provider == "openai":
+        if self.provider == "openai":
             raw_result = await self.async_models["openai"](
                 prompt,
                 self.openai_async_client,
@@ -324,11 +306,7 @@ class LLMFunc:
         )
         logger.debug(f"Function message {function_messages}")
 
-        if self.provider == "ernie":
-            raise NotImplementedError(
-                f"Function calling for provider [{self.provider}] is not supported yet"
-            )
-        elif self.provider == "openai":
+        if self.provider == "openai":
             raw_result: ChatCompletionMessage = (
                 (
                     await self.async_models["openai"](

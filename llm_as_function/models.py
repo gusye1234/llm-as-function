@@ -1,6 +1,6 @@
 import openai
 from openai import OpenAI, AsyncOpenAI
-import erniebot
+from functools import wraps
 from .utils import logger
 
 JSON_SCHEMA_PROMPT = {
@@ -17,93 +17,82 @@ JSON_SCHEMA_PROMPT = {
 }
 
 
-def ernie_single_create(
-    query, model="ernie-bot-4", max_retry=3, temperature=0.1, runtime_options={}
-):
-    retry = 0
-    while retry < max_retry:
-        try:
-            response = erniebot.ChatCompletion.create(
-                model=model,
-                messages=[{"role": "user", "content": query}],
-                temperature=temperature,
-                **runtime_options,
-            )
-            return response.get_result()
-        except erniebot.errors.APIError:
-            retry += 1
-            logger.warning(f"Failed {retry} times, retrying...")
-    raise erniebot.errors.APIError("Max retry is reached")
+def openai_max_retry(func, retry_times=3):
+    @wraps(func)
+    def new_func(*args, **kwargs):
+        current_retries = 0
+        while current_retries < retry_times:
+            try:
+                result = func(*args, **kwargs)
+                return result
+            except openai.APIConnectionError as e:
+                current_retries += 1
+                if current_retries >= retry_times:
+                    raise e
+                logger.warning(
+                    f"Connect error for {func.__name__}, retry {current_retries} times"
+                )
+            except Exception as e:
+                raise e
+
+    return new_func
 
 
-async def ernie_single_acreate(
-    query, model="ernie-bot-4", max_retry=3, temperature=0.1, runtime_options={}
-):
-    retry = 0
-    while retry < max_retry:
-        try:
-            response = await erniebot.ChatCompletion.acreate(
-                model=model,
-                messages=[{"role": "user", "content": query}],
-                temperature=temperature,
-                **runtime_options,
-            )
-            return response.get_result()
-        except erniebot.errors.APIError:
-            retry += 1
-            logger.warning(f"Failed {retry} times, retrying...")
-    raise erniebot.errors.APIError("Max retry is reached")
+def async_openai_max_retry(func, retry_times=3):
+    @wraps(func)
+    async def new_func(*args, **kwargs):
+        current_retries = 0
+        while current_retries < retry_times:
+            try:
+                result = await func(*args, **kwargs)
+                return result
+            except openai.APIConnectionError as e:
+                current_retries += 1
+                if current_retries >= retry_times:
+                    raise e
+                logger.warning(
+                    f"Connect error for {func.__name__}, retry {current_retries} times"
+                )
+            except Exception as e:
+                raise e
+
+    return new_func
 
 
+@openai_max_retry
 def openai_single_create(
     query,
     client: OpenAI,
     model="gpt-3.5-turbo-1106",
-    max_retry=3,
     temperature=0.1,
     function_messages=[],
     runtime_options={},
 ):
-    retry = 0
-    while retry < max_retry:
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": query}] + function_messages,
-                temperature=temperature,
-                response_format={"type": "json_object"},
-                **runtime_options,
-            )
-            return response
-        except Exception as e:
-            retry += 1
-            logger.error(e)
-            logger.warning(f"Failed {retry} times, retrying...")
-    raise openai.APIConnectionError("Max retry is reached")
+    response = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": query}] + function_messages,
+        temperature=temperature,
+        response_format={"type": "json_object"},
+        **runtime_options,
+    )
+    return response
 
 
+@async_openai_max_retry
 async def openai_single_acreate(
     query,
     client: AsyncOpenAI,
     model="gpt-3.5-turbo-1106",
-    max_retry=3,
     temperature=0.1,
     function_messages=[],
     runtime_options={},
 ):
-    retry = 0
-    while retry < max_retry:
-        try:
-            response = await client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": query}] + function_messages,
-                temperature=temperature,
-                response_format={"type": "json_object"},
-                **runtime_options,
-            )
-            return response
-        except Exception as e:
-            logger.error(e)
-            logger.warning(f"Failed {retry} times, retrying...")
-            retry += 1
-    raise openai.APIConnectionError("Max retry is reached")
+
+    response = await client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": query}] + function_messages,
+        temperature=temperature,
+        response_format={"type": "json_object"},
+        **runtime_options,
+    )
+    return response
