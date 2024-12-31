@@ -46,9 +46,9 @@ class LLMFunc:
     """Use LLM as a function"""
 
     parse_mode: str = "error"
-    output_schema: BaseModel | None = None
-    output_json: dict | None = None
-    prompt_template: str = ""
+    output_schema: type[BaseModel] | None = None
+    output_json: str | None = None  # The string generated from the output schema to be embedded into the prompt payload
+    prompt_template: str = ""  # The actual prompt of the llmfunc i.e. core logic
     model: str = "gpt-3.5-turbo-1106"
     temperature: float = 0.1
     openai_api_key: str | None = None
@@ -86,6 +86,7 @@ class LLMFunc:
             )(openai_single_acreate)
 
     def reset(self):
+        """Reset the llmfuncs to the initial (default) state"""
         self.prompt_template = ""
         self.output_schema = None
         self.output_json = None
@@ -93,7 +94,8 @@ class LLMFunc:
         self.func_callings = []
         self.fn_callings = {}
 
-    def prompt(self, prompt_template):
+    def prompt(self, prompt_template: str):
+        """Sets the llmfuncs prompt template"""
         self.prompt_template = prompt_template.strip("\n ")
 
         return self
@@ -113,23 +115,34 @@ class LLMFunc:
 
         return self
 
-    def output(self, output_schema):
+    def output(self, output_schema: type[BaseModel]):
+        """
+        Sets the llmfuncs output schema, also generates a text representation of the schema
+        to be embedded into the prompt payload.
+
+        """
         self.output_schema = output_schema
         self.output_json = generate_schema_prompt(output_schema)
         return self
 
-    def parse_output(self, output, output_schema):
-        try:
-            json_str = clean_output_parse(output)
-            output = output_schema(**json.loads(json_str)).model_dump()
-            return Final(output)
-        except:
+    def parse_output(self, output: str, output_schema: type[BaseModel]) -> Final:
+        """
+        Cleans the output and parses it to the given output_schema.
+
+        """
+        json_str = clean_output_parse(output)
+
+        if json_str is None:
             logger.error(f"Failed to parse output: {output}")
             if self.parse_mode == "error":
-                raise InvalidLLMResponse(f"Failed to parse output: {output}")
+                raise InvalidLLMResponse(f"Failed to parse output to a valid json: {output}")
             elif self.parse_mode == "accept_raw":
                 return Final(raw_response=output)
             raise InvalidLLMResponse(f"Failed to parse output: {output}")
+
+        output_dict = output_schema(**json.loads(json_str)).model_dump()
+
+        return Final(output_dict)
 
     def _init_setup(self, func):
         return_annotation = func.__annotations__.get("return", None)
@@ -214,7 +227,7 @@ class LLMFunc:
             logger.debug(
                 f"Calling function {function_name} with args {function_args_json}"
             )
-            validate_type: BaseModel = get_argument_for_function(function_to_call)
+            validate_type: type[BaseModel] = get_argument_for_function(function_to_call)
             try:
                 function_args_parsed = validate_type.model_validate_json(
                     function_args_json
@@ -359,6 +372,13 @@ class LLMFunc:
             raw_result = self._provider_response(
                 prompt, runtime_options=runtime_options, fn_callings=fn_callings
             )
+
+            if not isinstance(raw_result, str):
+                raise ValueError(f"Expected raw_result to be of type 'str' but it is of type '{type(raw_result)}'")
+
+            if output_schema is None:
+                raise ValueError("The output_schema is None, it is expected to be a type[BaseModel]")
+
             result = self.parse_output(raw_result, output_schema)
 
             return result
@@ -391,6 +411,13 @@ class LLMFunc:
             raw_result = await self._provider_async_response(
                 prompt, runtime_options=runtime_options, fn_callings=fn_callings
             )
+
+            if not isinstance(raw_result, str):
+                raise ValueError(f"Expected raw_result to be of type 'str' but it is of type '{type(raw_result)}'")
+
+            if output_schema is None:
+                raise ValueError("The output_schema is None, it is expected to be a type[BaseModel]")
+
             result = self.parse_output(raw_result, output_schema)
             logger.debug(f"Return {result}")
 

@@ -47,7 +47,11 @@ def find_json_response(full_response, extract_type=dict):
     return extracted_str
 
 
-def clean_output_parse(llm_output: str):
+def clean_output_parse(llm_output: str) -> str | None:
+    """
+    Cleans the llms output then tries to extract json from said output returns None if it can't find any
+
+    """
     return find_json_response(llm_output.strip())
 
 
