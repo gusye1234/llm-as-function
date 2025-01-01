@@ -14,7 +14,7 @@ from pydantic import BaseModel, ValidationError
 
 from llm_as_function.types import LLMFuncConfig, RuntimeOptions, empty_runtime_options, Tool
 
-from .errors import InvalidFunctionParameters, InvalidLLMResponse
+from .errors import InvalidFunctionParameters, InvalidLLMResponse, ModelDoesNotSupportToolUse
 from .fn_calling import function_to_name, get_argument_for_function, parse_function
 from .models import (
     get_json_schema_prompt,
@@ -32,6 +32,10 @@ def model_factory(model_name: str) -> Literal["openai", "ollama"]:
     elif model_name.startswith("llama"):
         return "ollama"
     raise NotImplementedError(f"llm-as-function currently supports OpenAI models, not {model_name}")
+
+
+def does_model_not_support_tool_use(model_name: str):
+    return model_name in ["llama2", "llama3"]
 
 
 @dataclass
@@ -129,8 +133,12 @@ class LLMFunc:
         These functions are expected to return a string, and the function arguments are expected to be a Pydantic BaseModel.
         i.e. Single argument function that returns a string.
 
+
+        Some LLM's do not support tool architecture, and will raise an error (ModelDoesNotSupportToolUse) if you try to use this feature.
         """
         # MAYBE Rename to add_tool
+        if does_model_not_support_tool_use(self.config["model"]):
+            raise ModelDoesNotSupportToolUse(self.config["model"])
 
         if self.provider not in ["openai", "ollama"]:
             raise NotImplementedError(f"Function calling for {self.provider} is not supported yet")
