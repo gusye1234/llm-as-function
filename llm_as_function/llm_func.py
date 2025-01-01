@@ -28,7 +28,7 @@ from .utils import LimitAPICalling, clean_output_parse, generate_schema_prompt, 
 
 def model_factory(model_name: str) -> Literal["openai", "ollama"]:
     OPENAI_STARTS_WITH = ["gpt"]
-    OLLAMA_STARTS_WITH = ["llama", "qwq"]
+    OLLAMA_STARTS_WITH = ["llama", "qwq", "qwen"]
 
     if any(model_name.startswith(prefix) for prefix in OPENAI_STARTS_WITH):
         return "openai"
