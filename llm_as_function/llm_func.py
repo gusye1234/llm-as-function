@@ -3,7 +3,7 @@ import json
 from copy import copy
 from dataclasses import dataclass, field
 from functools import wraps
-from typing import Literal, TypedDict, List
+from typing import Literal, TypedDict, Required, List
 
 from openai import AsyncOpenAI, OpenAI
 from openai.types.chat import ChatCompletionMessage
@@ -19,9 +19,9 @@ from .models import (
 from .utils import LimitAPICalling, clean_output_parse, generate_schema_prompt, logger
 
 
-class Tool(TypedDict):
-    type: Literal["function"]
-    function: dict
+class Tool(TypedDict, total=False):
+    function: Required[dict]
+    type: Required[Literal["function"]]
 
 
 class RuntimeOptions(TypedDict):
@@ -90,6 +90,8 @@ class LLMFunc:
 
         if self.provider == "ollama":
             raise NotImplementedError
+            self.ollama_client = ...
+            self.olla_async_client = ...
 
         if self.async_max_time is None:
             self.async_models["openai"] = openai_single_acreate

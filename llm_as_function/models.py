@@ -1,6 +1,8 @@
 import openai
 from openai import OpenAI, AsyncOpenAI
 from functools import wraps
+
+from llm_as_function.llm_func import RuntimeOptions, empty_runtime_options
 from .utils import logger
 
 JSON_SCHEMA_PROMPT = {
@@ -79,14 +81,15 @@ def openai_single_create(
     model="gpt-3.5-turbo-1106",
     temperature=0.1,
     function_messages=[],
-    runtime_options={},
+    runtime_options: RuntimeOptions = empty_runtime_options(),
 ):
     response = client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": query}] + function_messages,
         temperature=temperature,
         response_format={"type": "json_object"},
-        **runtime_options,
+        tools=runtime_options["tools"],  # type: ignore This is the same type as list[ChatCompletionToolParams] but since we user our own types instead of openai's, we need to ignore this
+        tool_choice=runtime_options["tool_choice"],
     )
     return response
 
@@ -98,7 +101,7 @@ async def openai_single_acreate(
     model="gpt-3.5-turbo-1106",
     temperature=0.1,
     function_messages=[],
-    runtime_options={},
+    runtime_options: RuntimeOptions = empty_runtime_options(),
 ):
 
     response = await client.chat.completions.create(
@@ -106,7 +109,8 @@ async def openai_single_acreate(
         messages=[{"role": "user", "content": query}] + function_messages,
         temperature=temperature,
         response_format={"type": "json_object"},
-        **runtime_options,
+        tools=runtime_options["tools"],  # type: ignore This is the same type as list[ChatCompletionToolParams] but since we user our own types instead of openai's, we need to ignore this
+        tool_choice=runtime_options["tool_choice"],
     )
     return response
 
@@ -118,7 +122,7 @@ def ollama_single_create(
     model="gpt-3.5-turbo-1106",
     temperature=0.1,
     function_messages=[],
-    runtime_options={},
+    runtime_options: RuntimeOptions = empty_runtime_options(),
 ):
     raise NotImplementedError
 
@@ -130,6 +134,6 @@ async def ollama_single_acreate(
     model="gpt-3.5-turbo-1106",
     temperature=0.1,
     function_messages=[],
-    runtime_options={},
+    runtime_options: RuntimeOptions = empty_runtime_options(),
 ):
     raise NotImplementedError
