@@ -3,37 +3,27 @@ import json
 from copy import copy
 from dataclasses import dataclass, field
 from functools import wraps
-from typing import Literal, TypedDict, Required, List
+import os
+from typing import Literal
 
+import ollama
 from openai import AsyncOpenAI, OpenAI
-from openai.types.chat import ChatCompletionMessage
+from openai.types.chat import ChatCompletion, ChatCompletionMessage
+from ollama import Client as OllamaClient, AsyncClient as OllamaAsyncClient
 from pydantic import BaseModel, ValidationError
+
+from llm_as_function.types import LLMFuncConfig, RuntimeOptions, empty_runtime_options, Tool
 
 from .errors import InvalidFunctionParameters, InvalidLLMResponse
 from .fn_calling import function_to_name, get_argument_for_function, parse_function
 from .models import (
-    JSON_SCHEMA_PROMPT,
+    get_json_schema_prompt,
     openai_single_acreate,
     openai_single_create,
+    ollama_single_acreate,
+    ollama_single_create,
 )
 from .utils import LimitAPICalling, clean_output_parse, generate_schema_prompt, logger
-
-
-class Tool(TypedDict, total=False):
-    function: Required[dict]
-    type: Required[Literal["function"]]
-
-
-class RuntimeOptions(TypedDict):
-    tools: List[Tool]
-    tool_choice: Literal["none", "auto", "required"]  # For more info check https://platform.openai.com/docs/api-reference/chat/create
-
-
-def empty_runtime_options() -> RuntimeOptions:
-    return {
-        "tools": [],
-        "tool_choice": "auto",
-    }
 
 
 def model_factory(model_name: str) -> Literal["openai", "ollama"]:
@@ -70,13 +60,14 @@ class LLMFunc:
     temperature: float = 0.1
     openai_api_key: str | None = None
     openai_base_url: str | None = None
+    ollama_base_url: str | None = None
     async_max_time: int | None = None
     async_wait_time: float = 0.1
     runtime_options: RuntimeOptions = field(default_factory=empty_runtime_options)
 
     def __post_init__(self):
         assert self.parse_mode in ["error", "accept_raw",], f"Parse mode must in ['error', 'accept_raw'], not {self.parse_mode}"
-        self.config: dict = dict(model=self.model, temperature=self.temperature)
+        self.config: LLMFuncConfig = LLMFuncConfig(model=self.model, temperature=self.temperature)
         self.provider = model_factory(self.config["model"])
 
         self._bp_runtime_options = copy(self.runtime_options)
@@ -84,20 +75,29 @@ class LLMFunc:
         self.async_models = {}
 
         if self.provider == "openai":
+            if self.openai_api_key is None:
+                logger.warning("OpenAI api key is not set, OPENAI_API_KEY env variable will be used instead")
+                self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
+
             assert self.openai_api_key != "", "You must have OpenAI api key input, or set OPENAI_API_KEY in your environment."
+
             self.openai_client = OpenAI(api_key=self.openai_api_key, base_url=self.openai_base_url)
             self.openai_async_client = AsyncOpenAI(api_key=self.openai_api_key, base_url=self.openai_base_url)
 
         if self.provider == "ollama":
-            raise NotImplementedError
-            self.ollama_client = ...
-            self.olla_async_client = ...
+            if self.ollama_base_url is None:
+                logger.warning("Ollama base url is not set, ollama will use default")
+
+            self.ollama_client = OllamaClient(host=self.ollama_base_url)
+            self.ollama_async_client = OllamaAsyncClient(host=self.ollama_base_url)
 
         if self.async_max_time is None:
             self.async_models["openai"] = openai_single_acreate
+            self.async_models["ollama"] = ollama_single_acreate
         else:
             _limiter_decorator = LimitAPICalling(max_size=self.async_max_time, waiting_time=self.async_wait_time)
             self.async_models["openai"] = _limiter_decorator(openai_single_acreate)
+            self.async_models["ollama"] = _limiter_decorator(ollama_single_acreate)
 
     def reset(self):
         """Reset the llmfuncs to the initial (default) state"""
@@ -126,19 +126,19 @@ class LLMFunc:
             * https://platform.openai.com/docs/guides/function-calling/function-calling-behavior
             * https://platform.openai.com/docs/api-reference/chat/create
 
-        """
+        These functions are expected to return a string, and the function arguments are expected to be a Pydantic BaseModel.
+        i.e. Single argument function that returns a string.
 
-        # TODO Rename to add_tool
-        if self.provider != "openai":
-            raise NotImplementedError(
-                f"Function calling for {self.provider} is not supported yet"
-            )
+        """
+        # MAYBE Rename to add_tool
+
+        if self.provider not in ["openai", "ollama"]:
+            raise NotImplementedError(f"Function calling for {self.provider} is not supported yet")
+
         self.fn_callings[function_to_name(func)] = func
 
         func_desc = parse_function(func)
-
         new_tool = Tool(type="function", function=func_desc)
-
         self.runtime_options["tools"].append(new_tool)
         # self.runtime_options["tool_choice"] = "auto" #  Already default
 
@@ -159,6 +159,7 @@ class LLMFunc:
         Cleans the output and parses it to the given output_schema.
 
         """
+        logger.debug(f"Got output: {output}")
         json_str = clean_output_parse(output)
 
         if json_str is None:
@@ -175,20 +176,18 @@ class LLMFunc:
 
     def _init_setup(self, func):
         return_annotation = func.__annotations__.get("return", None)
+
         if return_annotation is not None:
-            assert issubclass(
-                return_annotation, BaseModel
-            ), "Return must be a Pydantic BaseModel"
+            assert issubclass(return_annotation, BaseModel), "Return must be a Pydantic BaseModel"
             self.output(return_annotation)
+
         if self.output_schema is None and return_annotation is None:
-            raise ValueError(
-                "You must specify the output schema or the function return annotation"
-            )
+            raise ValueError("You must specify the output schema or the function return annotation")
+
         if self.prompt_template == "":
             if func.__doc__ is None:
-                raise ValueError(
-                    "You must specify the prompt template or the function docstring"
-                )
+                raise ValueError("You must specify the prompt template or the function docstring")
+
             self.prompt(func.__doc__)
 
         return (
@@ -199,68 +198,98 @@ class LLMFunc:
             self.fn_callings,
         )
 
-    def _fill_prompt(self, kwargs: dict, local_var: dict, prompt_template: str) -> Final | str:
+    def _fill_prompt(self, kwargs: dict, local_var: Final | dict, prompt_template: str) -> Final | str:
+        """Fills the prompt template with the given kwargs and local_var, if local_var is a Final object, it will return the object"""
         if local_var is not None:
             if isinstance(local_var, Final):
                 return local_var
             elif isinstance(local_var, dict):
                 prompt = prompt_template.format(**kwargs, **local_var)
             else:
-                raise NotImplementedError(
-                    f"UnSupported branch {type(local_var)}, please use one of the branch class: Final, dict"
-                )
+                raise NotImplementedError(f"UnSupported branch {type(local_var)}, please use one of the branch class: Final, dict")
         else:
             prompt = prompt_template.format(**kwargs)
+
         return prompt
 
     def _provider_response(self, prompt, runtime_options={}, fn_callings={}):
         logger.debug(runtime_options)
+
         if self.provider == "openai":
-            raw_result: ChatCompletionMessage = (
-                openai_single_create(
-                    prompt,
-                    self.openai_client,
-                    runtime_options=runtime_options,
-                    **self.config,
-                )
-                .choices[0]
-                .message
+            chat_completion = openai_single_create(
+                prompt,
+                self.openai_client,
+                runtime_options=runtime_options,
+                model=self.config["model"],
+                temperature=self.config["temperature"],
             )
+
+            raw_result: ChatCompletionMessage = chat_completion.choices[0].message
+
+            # If there is no tool_calls, return the content
             if raw_result.tool_calls is None:
                 return raw_result.content
-            return self._function_call_branch(
-                prompt, raw_result, runtime_options, fn_callings
+
+            # If there is tool_calls, call the functions
+            return self._function_call_branch(prompt, raw_result, runtime_options, fn_callings)
+
+        if self.provider == "ollama":
+            chat_response = ollama_single_create(
+                prompt,
+                self.ollama_client,
+                runtime_options=runtime_options,
+                model=self.config["model"],
+                temperature=self.config["temperature"],
             )
+
+            raw_results = chat_response.message
+
+            # If there is no tool_calls, return the content
+            if raw_results.tool_calls is None:
+                return raw_results.content
+
+            # If there is tool_calls, call the functions
+            return self._function_call_branch(prompt, raw_results, runtime_options, fn_callings)
+
         raise NotImplementedError(f"Provider [{self.provider}] is not supported yet")
 
     def _form_function_messages(
         self,
-        tool_message: ChatCompletionMessage,
+        tool_message: ChatCompletionMessage | ollama.Message,
         fn_callings={},
         history_messages=[],
     ):
         function_messages = history_messages + [tool_message]
 
         tool_calls = tool_message.tool_calls
+
         if tool_calls is None:
             raise ValueError("tool_calls is None")
+
         for tool_call in tool_calls:
             function_name = tool_call.function.name
+
             try:
                 function_to_call = fn_callings[function_name]
             except KeyError as e:
                 logger.error(f"function name is never added: {function_name}")
                 raise e
 
-            function_args_json = tool_call.function.arguments
-            logger.debug(
-                f"Calling function {function_name} with args {function_args_json}"
-            )
+            function_args_json = tool_call.function.arguments  # For ollama this is Mapping[str, Any] and for openai this is str (JSON)
+
+            # Convert (or try to) ollama's Mapping[str, Any] to str
+            if not isinstance(function_args_json, str):
+                try:
+                    function_args_json = json.dumps(function_args_json)
+                except Exception as e:
+                    raise ValueError(f"Failed to convert function_args_json to str: {function_args_json}. Failed with exception: {e}")
+
+            logger.debug(f"Calling function {function_name} with args {function_args_json}")
+
             validate_type: type[BaseModel] = get_argument_for_function(function_to_call)
+
             try:
-                function_args_parsed = validate_type.model_validate_json(
-                    function_args_json
-                )
+                function_args_parsed = validate_type.model_validate_json(function_args_json)
             except (ValueError, ValidationError):
                 raise InvalidFunctionParameters(function_name, function_args_json)
 
@@ -270,75 +299,113 @@ class LLMFunc:
                 logger.error(f"Occur error when running {function_name}")
                 raise e
 
-            assert isinstance(
-                function_response, str
-            ), f"Expect function [{function_name}] to return str, not {type(function_response)}"
+            assert isinstance(function_response, str), f"Expect function [{function_name}] to return str, not {type(function_response)}"
 
-            function_messages.append(
-                {
-                    "tool_call_id": tool_call.id,
-                    "role": "tool",
-                    "name": function_name,
-                    "content": function_response,
-                }
-            )
+            message = {
+                "role": "tool",
+                "name": function_name,
+                "content": function_response,
+            }
+
+            # openai has id, ollama has tool_call_id
+            if hasattr(tool_call, 'id'):
+                assert not isinstance(tool_call, ollama.Message.ToolCall), "tool_call is not expected to be ollama.Message.ToolCall since it has no id"
+                message["tool_call_id"] = tool_call.id
+
+            function_messages.append(message)
+
         return function_messages
 
     def _function_call_branch(
         self,
         prompt,
-        tool_message: ChatCompletionMessage,
+        tool_message: ChatCompletionMessage | ollama.Message,
         runtime_options={},
         fn_callings={},
         history_messages=[],
     ):
-        function_messages = self._form_function_messages(
-            tool_message, fn_callings, history_messages
-        )
+        """Recursively call the functions in the tool_calls, each time appending the function response to funciton_messages and calling the next function"""
+        function_messages = self._form_function_messages(tool_message, fn_callings, history_messages)
+
         logger.debug(f"Function message {function_messages}")
+
         if self.provider == "openai":
-            raw_result: ChatCompletionMessage = (
-                openai_single_create(
-                    prompt,
-                    self.openai_client,
-                    runtime_options=runtime_options,
-                    function_messages=function_messages,
-                    **self.config,
-                )
-                .choices[0]
-                .message
+            chat_completion = openai_single_create(
+                prompt,
+                self.openai_client,
+                runtime_options=runtime_options,
+                function_messages=function_messages,
+                model=self.config["model"],
+                temperature=self.config["temperature"],
             )
+
+            raw_result: ChatCompletionMessage = (chat_completion.choices[0].message)
+
             if raw_result.tool_calls is None:
                 return raw_result.content
-            return self._function_call_branch(
-                prompt, raw_result, runtime_options, fn_callings, function_messages
+
+            return self._function_call_branch(prompt, raw_result, runtime_options, fn_callings, function_messages)
+
+        if self.provider == "ollama":
+            chat_response = ollama_single_create(
+                prompt,
+                self.ollama_client,
+                runtime_options=runtime_options,
+                function_messages=function_messages,
+                model=self.config["model"],
+                temperature=self.config["temperature"],
             )
-        raise NotImplementedError(
-            f"Function calling for provider [{self.provider}] is not supported yet"
-        )
+
+            raw_results = chat_response.message
+
+            if raw_results.tool_calls is None:
+                return raw_results.content
+
+            return self._function_call_branch(prompt, raw_results, runtime_options, fn_callings, function_messages)
+
+        raise NotImplementedError(f"Function calling for provider [{self.provider}] is not supported yet")
 
     async def _provider_async_response(
         self, prompt, runtime_options={}, fn_callings={}
     ):
         if self.provider == "openai":
-            raw_result = await self.async_models["openai"](
+            chat_completion: ChatCompletion = await self.async_models["openai"](
                 prompt,
                 self.openai_async_client,
                 runtime_options=runtime_options,
-                **self.config,
+                model=self.config["model"],
+                temperature=self.config["temperature"],
             )
-            raw_result: ChatCompletionMessage = raw_result.choices[0].message
-            if raw_result.tool_calls is None:
-                return raw_result.content
-            return await self._async_function_call_branch(
-                prompt, raw_result, runtime_options, fn_callings
+
+            openai_raw_result: ChatCompletionMessage = chat_completion.choices[0].message
+
+            if openai_raw_result.tool_calls is None:
+                return openai_raw_result.content
+
+            return await self._async_function_call_branch(prompt, openai_raw_result, runtime_options, fn_callings)
+
+        if self.provider == "ollama":
+            raw_result: ollama.ChatResponse = await self.async_models["ollama"](
+                prompt,
+                self.ollama_async_client,
+                runtime_options=runtime_options,
+                model=self.config["model"],
+                temperature=self.config["temperature"],
             )
+
+            ollama_raw_result: ollama.Message = raw_result.message
+
+            if ollama_raw_result.tool_calls is None:
+                return ollama_raw_result.content
+
+            return await self._async_function_call_branch(prompt, ollama_raw_result, runtime_options, fn_callings)
+
         raise NotImplementedError(f"Provider [{self.provider}] is not supported yet")
 
     async def _async_function_call_branch(
         self,
         prompt,
-        tool_message: ChatCompletionMessage,
+        tool_message: ChatCompletionMessage | ollama.Message,
         runtime_options={},
         fn_callings={},
         history_messages=[],
@@ -349,32 +416,46 @@ class LLMFunc:
         logger.debug(f"Function message {function_messages}")
 
         if self.provider == "openai":
-            raw_result: ChatCompletionMessage = (
-                (
-                    await self.async_models["openai"](
-                        prompt,
-                        self.openai_async_client,
-                        runtime_options=runtime_options,
-                        function_messages=function_messages,
-                        **self.config,
-                    )
-                )
-                .choices[0]
-                .message
+            chat_completion: ChatCompletion = await self.async_models["openai"](
+                prompt,
+                self.openai_async_client,
+                runtime_options=runtime_options,
+                function_messages=function_messages,
+                model=self.config["model"],
+                temperature=self.config["temperature"],
             )
-            if raw_result.tool_calls is None:
-                return raw_result.content
-            return await self._async_function_call_branch(
-                prompt, raw_result, runtime_options, fn_callings, function_messages
+
+            openai_raw_result: ChatCompletionMessage = chat_completion.choices[0].message
+
+            if openai_raw_result.tool_calls is None:
+                return openai_raw_result.content
+
+            return await self._async_function_call_branch(prompt, openai_raw_result, runtime_options, fn_callings, function_messages)
+
+        if self.provider == "ollama":
+            raw_result: ollama.ChatResponse = await self.async_models["ollama"](
+                prompt,
+                self.ollama_async_client,
+                runtime_options=runtime_options,
+                function_messages=function_messages,
+                model=self.config["model"],
+                temperature=self.config["temperature"],
             )
+
+            ollama_raw_result: ollama.Message = raw_result.message
+
+            if ollama_raw_result.tool_calls is None:
+                return ollama_raw_result.content
+
+            return await self._async_function_call_branch(prompt, ollama_raw_result, runtime_options, fn_callings, function_messages)
+
         raise NotImplementedError(
             f"Function calling for provider [{self.provider}] is not supported yet"
         )
 
     def _append_json_schema(self, prompt: str, output_json: str):
-        append_prompt = JSON_SCHEMA_PROMPT[self.provider].format(
-            json_schema=output_json
-        )
+        """Gets the json schema prompt and appends it to the prompt to make models output json like the schema"""
+        append_prompt = get_json_schema_prompt(self.provider, self.model).format(json_schema=output_json)
         return prompt + append_prompt
 
     def __call__(self, func):
@@ -389,7 +470,7 @@ class LLMFunc:
 
         self.reset()
 
-        @wraps(func)
+        @ wraps(func)
         def new_func(**kwargs):
             local_var = func(**kwargs)
             logger.debug(f"[Variables] function args:{kwargs}, local vars: {local_var}")
@@ -434,7 +515,7 @@ class LLMFunc:
 
         self.reset()
 
-        @wraps(func)
+        @ wraps(func)
         async def new_func(**kwargs):
             if inspect.iscoroutinefunction(func):
                 local_var = await func(**kwargs)
