@@ -41,7 +41,7 @@ def get_current_time(request: GetCurrentTimeRequest):
 
 def test_fn_calling():
     @gpt35_func.func(get_current_weather).func(get_current_time)
-    def fool() -> Result:
+    def fool() -> Result:  # type: ignore
         """Search the weather and current time of New York. And then summary the time and weather one sentence.
         Be careful, you should not call the same function twice.
         """
@@ -53,11 +53,11 @@ def test_fn_calling():
 
 def test_fn_async_calling():
     @gpt35_func.func(get_current_weather).func(get_current_time).async_call
-    def fool2() -> Result:
+    def fool2() -> Result:  # type: ignore
         """Search the weather and current time of New York. And then summary the time and weather one sentence.
         Be careful, you should not call the same function twice.
         """
         pass
 
-    result = asyncio.run(fool2()).unpack()
+    result = asyncio.run(fool2()).unpack()  # type: ignore
     print(result)
