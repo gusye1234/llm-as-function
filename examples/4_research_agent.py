@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 sys.path.append("../")
 load_dotenv()
 
+import gradio as gr
 from pydantic import BaseModel, Field
 from llm_as_function import Final, LLMFunc
 from llm_as_function.utils import logger
@@ -27,7 +28,7 @@ CURRENT_Q = {}
 
 
 @LLMFunc()
-def ask_question(query) -> FollowingQuestionResult:
+def ask_question(query) -> FollowingQuestionResult:  # type: ignore
     """你是一个充满好奇的调研科学家.
     用户向你提了一个问题: {query}. 你需要根据你的知识简单回复用户的问题. 然后你需要发散你的思维, 思考如何提出更多的追问, 以便更好的完善这个问题."""
     pass
@@ -45,7 +46,11 @@ def research(query, current_layer=1, max_layer=2) -> Result:
         CURRENT_Q[f"layer_{current_layer}"] = [query]
     else:
         CURRENT_Q[f"layer_{current_layer}"].append(query)
+
     pack = ask_question(query=query).unpack()
+
+    assert isinstance(pack, dict), "The return value of ask_question should be a dict"
+
     answer = pack["answer"]
 
     print(f"{query}: {answer}")
@@ -54,18 +59,17 @@ def research(query, current_layer=1, max_layer=2) -> Result:
     sub_answers = []
 
     if current_layer >= max_layer:
-        return Final({"summary": answer})
+        return Final({"summary": answer})  # type: ignore
 
     for question in following_questions[:3]:
         print(f"{query} -> {question}")
-        sub_answers.append(
-            (
-                question,
-                research(
-                    query=question, current_layer=current_layer + 1, max_layer=max_layer
-                ).unpack()["summary"],
-            )
-        )
+
+        response = research(query=question, current_layer=current_layer + 1, max_layer=max_layer).unpack()
+
+        assert isinstance(response, dict), "The return value of research should be a dict"
+        assert "summary" in response, "The return value of research should have a key 'summary'"
+
+        sub_answers.append((question, response["summary"]))
 
     sub_answer = "\n".join(
         [
@@ -73,14 +77,17 @@ def research(query, current_layer=1, max_layer=2) -> Result:
             for question, answer in sub_answers
         ]
     )
-    return Final({"summary": f"{'#'*current_layer} {query}\n{answer}\n{sub_answer}"})
-
-
-import gradio as gr
+    return Final({"summary": f"{'#'*current_layer} {query}\n{answer}\n{sub_answer}"})  # type: ignore
 
 
 def get_result(query, max_layer=2):
-    message = research(query=query, max_layer=max_layer).unpack()["summary"]
+    response = research(query=query, max_layer=max_layer).unpack()
+
+    assert isinstance(response, dict), "The return value of research should be a dict"
+    assert "summary" in response, "The return value of research should have a key 'summary'"
+
+    message = response["summary"]
+
     return gr.Markdown(message)
 
 
@@ -110,7 +117,7 @@ Ask any question, I will discover all the dimensions of it
                 return CURRENT_Q
 
             @clean.click(outputs=label)
-            def fresh():
+            def cleaned():
                 global CURRENT_Q
                 CURRENT_Q = {}
                 return CURRENT_Q

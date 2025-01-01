@@ -148,7 +148,7 @@ print(f(3)) # {value: 2}
 
 ### Function calling
 
-`llm-as-function` offer the samilar way to tell LLM a series of function tools(`examples/5_function_calling.py`)
+`llm-as-function` offer the similar way to tell LLM a series of function tools(`examples/5_function_calling.py`)
 
 ```python
 class Result(BaseModel):

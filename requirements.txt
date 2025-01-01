@@ -1,3 +1,4 @@
 rich
 pydantic
 openai
+ollama
