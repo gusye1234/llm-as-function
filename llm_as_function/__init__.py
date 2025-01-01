@@ -1,4 +1,4 @@
-from .llm_func import LLMFunc
+from .llm_func import LLMFunc, Final
 import os
 
 if "OPENAI_API_KEY" in os.environ:

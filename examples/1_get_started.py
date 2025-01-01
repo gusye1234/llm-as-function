@@ -15,13 +15,13 @@ class Result(BaseModel):
 
 
 @gpt35_func
-def fool() -> Result:
+def fool() -> Result:  # type: ignore
     """You need to randomly output an emoji"""
     pass
 
 
 @gpt35_func
-def fool2(emotion) -> Result:
+def fool2(emotion) -> Result:  # type: ignore
     """
     You need to randomly output an emoji, which should be {emotion}
     """

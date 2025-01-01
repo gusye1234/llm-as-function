@@ -23,14 +23,19 @@ def f(x: int) -> Result:
     Given that you have the values of the two preceding terms, which are {a} and {b}. You calculate the {x}th term by adding the values of the two preceding terms. Please compute the value of the {x}th term.
     """
     if x == 1 or x == 0:
-        return Final({"value": x})
+        return Final({"value": x})  # type: ignore
+
     print(f"Running {x-1}")
     a = f(x=x - 1)
+
     print(f"Running {x-2}")
     b = f(x=x - 2)
-    a_value = a.unpack()["value"] if a.ok() else a.unpack()
-    b_value = b.unpack()["value"] if b.ok() else b.unpack()
-    return {"a": a_value, "b": b_value}
+
+    # if a.ok it means the unpack is a dict so ignore the type error
+    a_value = a.unpack()["value"] if a.ok() else a.unpack()  # type: ignore
+    b_value = b.unpack()["value"] if b.ok() else b.unpack()  # type: ignore
+
+    return {"a": a_value, "b": b_value}  # type: ignore
 
 
 print(f(x=3))

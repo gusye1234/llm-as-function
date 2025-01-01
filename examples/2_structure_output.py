@@ -26,7 +26,7 @@ class Result(BaseModel):
 
 
 @gpt35_func
-def fool() -> Result:
+def fool() -> Result:  # type: ignore
     """
     You need to randomly output an emoji
     """
