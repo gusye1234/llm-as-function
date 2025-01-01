@@ -9,7 +9,6 @@ llama2_func = LLMFunc(temperature=0.1, model="llama2")
 llama3_func = LLMFunc(temperature=0.1, model="llama3")
 llama3_3_func = LLMFunc(temperature=0.1, model="llama3.3", has_tool_support=True)
 qwq_func = LLMFunc(temperature=0.1, model="krtkygpta/qwq", has_tool_support=True)
-gemma2_tools_func = LLMFunc(temperature=0.1, model="krtkygpta/gemma2_tools", has_tool_support=True)
 
 
 __author__ = "Jianbai Ye"
