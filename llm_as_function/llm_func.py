@@ -28,13 +28,13 @@ from .utils import LimitAPICalling, clean_output_parse, generate_schema_prompt, 
 
 def model_factory(model_name: str) -> Literal["openai", "ollama"]:
     OPENAI_STARTS_WITH = ["gpt"]
-    OLLAMA_STARTS_WITH = ["llama", "qwq", "qwen"]
+    OLLAMA_STARTS_WITH = ["llama", "krtkygpta/qwq", "qwen"]
 
     if any(model_name.startswith(prefix) for prefix in OPENAI_STARTS_WITH):
         return "openai"
     elif any(model_name.startswith(prefix) for prefix in OLLAMA_STARTS_WITH):
         return "ollama"
-    raise NotImplementedError(f"llm-as-function currently supports OpenAI models, not {model_name}")
+    raise NotImplementedError(f"llm-as-function currently supports OpenAI and some Ollama models, not {model_name}")
 
 
 @dataclass
@@ -66,12 +66,20 @@ class LLMFunc:
     ollama_base_url: str | None = None
     async_max_time: int | None = None
     has_tool_support: bool = False
+    has_structured_output: bool = False
     async_wait_time: float = 0.1
     runtime_options: RuntimeOptions = field(default_factory=empty_runtime_options)
 
     def __post_init__(self):
         assert self.parse_mode in ["error", "accept_raw",], f"Parse mode must in ['error', 'accept_raw'], not {self.parse_mode}"
-        self.config: LLMFuncConfig = LLMFuncConfig(model=self.model, temperature=self.temperature, has_tool_support=self.has_tool_support)
+
+        self.config: LLMFuncConfig = LLMFuncConfig(
+            model=self.model,
+            temperature=self.temperature,
+            has_tool_support=self.has_tool_support,
+            has_structured_output=self.has_structured_output,
+        )
+
         self.provider = model_factory(self.config["model"])
 
         self._bp_runtime_options = copy(self.runtime_options)
@@ -155,10 +163,11 @@ class LLMFunc:
     def output(self, output_schema: type[BaseModel]):
         """
         Sets the llmfuncs output schema, also generates a text representation of the schema
-        to be embedded into the prompt payload.
+        to be embedded into the prompt payload.        
 
         """
         self.output_schema = output_schema
+        self.runtime_options["output_schema"] = output_schema.model_json_schema()
         self.output_json = generate_schema_prompt(output_schema)
         return self
 
@@ -493,7 +502,9 @@ class LLMFunc:
             if output_json is None:
                 raise ValueError("The output_json is None when calling llmfunction. Most likely output_schema isn't supplied so the output_json couldn't be generated")
 
-            prompt = self._append_json_schema(prompt, output_json)
+            if not self.config["has_structured_output"]:
+                prompt = self._append_json_schema(prompt, output_json)
+
             logger.debug(prompt)
 
             raw_result = self._provider_response(
@@ -541,7 +552,9 @@ class LLMFunc:
             if output_json is None:
                 raise ValueError("The output_json is None when calling llmfunction. Most likely output_schema isn't supplied so the output_json couldn't be generated")
 
-            prompt = self._append_json_schema(prompt, output_json)
+            if not self.config["has_structured_output"]:
+                prompt = self._append_json_schema(prompt, output_json)
+
             logger.debug(prompt)
 
             raw_result = await self._provider_async_response(

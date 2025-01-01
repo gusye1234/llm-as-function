@@ -183,6 +183,7 @@ def ollama_single_create(
         messages=[{"role": "user", "content": query}] + function_messages,
         options={"temperature": temperature},
         tools=runtime_options["tools"],  # ollama can just take in python functions but it also supports the tool format
+        format=runtime_options["output_schema"],
     )
 
     return repsonse
@@ -203,6 +204,7 @@ async def ollama_single_acreate(
         messages=[{"role": "user", "content": query}] + function_messages,
         options={"temperature": temperature},
         tools=runtime_options["tools"],  # ollama can just take in python functions but it also supports the tool format
+        format=runtime_options["output_schema"],
     )
 
     return response
