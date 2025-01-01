@@ -2,8 +2,8 @@ import inspect
 import json
 from copy import copy
 from dataclasses import dataclass, field
-from enum import StrEnum
 from functools import wraps
+from typing import Literal, TypedDict, List
 
 from openai import AsyncOpenAI, OpenAI
 from openai.types.chat import ChatCompletionMessage
@@ -19,12 +19,29 @@ from .models import (
 from .utils import LimitAPICalling, clean_output_parse, generate_schema_prompt, logger
 
 
-def model_factory(model_name: str):
+class Tool(TypedDict):
+    type: Literal["function"]
+    function: dict
+
+
+class RuntimeOptions(TypedDict):
+    tools: List[Tool]
+    tool_choice: Literal["none", "auto", "required"]  # For more info check https://platform.openai.com/docs/api-reference/chat/create
+
+
+def empty_runtime_options() -> RuntimeOptions:
+    return {
+        "tools": [],
+        "tool_choice": "auto",
+    }
+
+
+def model_factory(model_name: str) -> Literal["openai", "ollama"]:
     if model_name.startswith("gpt"):
         return "openai"
-    raise NotImplementedError(
-        f"llm-as-function currently supports OpenAI models, not {model_name}"
-    )
+    elif model_name.startswith("llama"):
+        return "ollama"
+    raise NotImplementedError(f"llm-as-function currently supports OpenAI models, not {model_name}")
 
 
 @dataclass
@@ -45,7 +62,7 @@ class Final:
 class LLMFunc:
     """Use LLM as a function"""
 
-    parse_mode: str = "error"
+    parse_mode: Literal["error", "accept_raw"] = "error"
     output_schema: type[BaseModel] | None = None
     output_json: str | None = None  # The string generated from the output schema to be embedded into the prompt payload
     prompt_template: str = ""  # The actual prompt of the llmfunc i.e. core logic
@@ -55,35 +72,30 @@ class LLMFunc:
     openai_base_url: str | None = None
     async_max_time: int | None = None
     async_wait_time: float = 0.1
-    runtime_options: dict = field(default_factory=dict)
+    runtime_options: RuntimeOptions = field(default_factory=empty_runtime_options)
 
     def __post_init__(self):
-        assert self.parse_mode in [
-            "error",
-            "accept_raw",
-        ], f"Parse mode must in ['error', 'accept_raw'], not {self.parse_mode}"
+        assert self.parse_mode in ["error", "accept_raw",], f"Parse mode must in ['error', 'accept_raw'], not {self.parse_mode}"
         self.config: dict = dict(model=self.model, temperature=self.temperature)
         self.provider = model_factory(self.config["model"])
 
         self._bp_runtime_options = copy(self.runtime_options)
         self.fn_callings = {}
         self.async_models = {}
+
         if self.provider == "openai":
-            assert (
-                self.openai_api_key != ""
-            ), "You must have OpenAI api key input, or set OPENAI_API_KEY in your environment."
-            self.openai_client = OpenAI(
-                api_key=self.openai_api_key, base_url=self.openai_base_url
-            )
-            self.openai_async_client = AsyncOpenAI(
-                api_key=self.openai_api_key, base_url=self.openai_base_url
-            )
+            assert self.openai_api_key != "", "You must have OpenAI api key input, or set OPENAI_API_KEY in your environment."
+            self.openai_client = OpenAI(api_key=self.openai_api_key, base_url=self.openai_base_url)
+            self.openai_async_client = AsyncOpenAI(api_key=self.openai_api_key, base_url=self.openai_base_url)
+
+        if self.provider == "ollama":
+            raise NotImplementedError
+
         if self.async_max_time is None:
             self.async_models["openai"] = openai_single_acreate
         else:
-            self.async_models["openai"] = LimitAPICalling(
-                max_size=self.async_max_time, waiting_time=self.async_wait_time
-            )(openai_single_acreate)
+            _limiter_decorator = LimitAPICalling(max_size=self.async_max_time, waiting_time=self.async_wait_time)
+            self.async_models["openai"] = _limiter_decorator(openai_single_acreate)
 
     def reset(self):
         """Reset the llmfuncs to the initial (default) state"""
@@ -101,6 +113,20 @@ class LLMFunc:
         return self
 
     def func(self, func):
+        """
+        Adds function as a 'tool' to be used by the llms.
+
+        Some LLM's support tool architecture, where you can define a function that the llm can 'use' during its
+        responses.
+
+        To learn more for OpenAI's api see:
+            * https://community.openai.com/t/new-api-feature-forcing-function-calling-via-tool-choice-required/731488
+            * https://platform.openai.com/docs/guides/function-calling/function-calling-behavior
+            * https://platform.openai.com/docs/api-reference/chat/create
+
+        """
+
+        # TODO Rename to add_tool
         if self.provider != "openai":
             raise NotImplementedError(
                 f"Function calling for {self.provider} is not supported yet"
@@ -108,10 +134,11 @@ class LLMFunc:
         self.fn_callings[function_to_name(func)] = func
 
         func_desc = parse_function(func)
-        if self.runtime_options.get("tools", None) is None:
-            self.runtime_options["tools"] = []
-        self.runtime_options["tools"].append(func_desc)
-        self.runtime_options["tool_choice"] = "auto"
+
+        new_tool = Tool(type="function", function=func_desc)
+
+        self.runtime_options["tools"].append(new_tool)
+        # self.runtime_options["tool_choice"] = "auto" #  Already default
 
         return self
 
@@ -170,7 +197,7 @@ class LLMFunc:
             self.fn_callings,
         )
 
-    def _fill_prompt(self, kwargs, local_var, prompt_template):
+    def _fill_prompt(self, kwargs: dict, local_var: dict, prompt_template: str) -> Final | str:
         if local_var is not None:
             if isinstance(local_var, Final):
                 return local_var
@@ -342,7 +369,7 @@ class LLMFunc:
             f"Function calling for provider [{self.provider}] is not supported yet"
         )
 
-    def _append_json_schema(self, prompt, output_json):
+    def _append_json_schema(self, prompt: str, output_json: str):
         append_prompt = JSON_SCHEMA_PROMPT[self.provider].format(
             json_schema=output_json
         )
@@ -366,6 +393,15 @@ class LLMFunc:
             logger.debug(f"[Variables] function args:{kwargs}, local vars: {local_var}")
 
             prompt = self._fill_prompt(kwargs, local_var, prompt_template)
+
+            if isinstance(prompt, Final):
+                # Docs say "The `Final` is a class in `llm-as-function`, and returning this class indicates that you do not need the large model to process your output."
+                # So this should just return
+                return prompt
+
+            if output_json is None:
+                raise ValueError("The output_json is None when calling llmfunction. Most likely output_schema isn't supplied so the output_json couldn't be generated")
+
             prompt = self._append_json_schema(prompt, output_json)
             logger.debug(prompt)
 
@@ -405,6 +441,15 @@ class LLMFunc:
             logger.debug(f"[Variables] function args:{kwargs}, local vars: {local_var}")
 
             prompt = self._fill_prompt(kwargs, local_var, prompt_template)
+
+            if isinstance(prompt, Final):
+                # Docs say "The `Final` is a class in `llm-as-function`, and returning this class indicates that you do not need the large model to process your output."
+                # So this should just return
+                return prompt
+
+            if output_json is None:
+                raise ValueError("The output_json is None when calling llmfunction. Most likely output_schema isn't supplied so the output_json couldn't be generated")
+
             prompt = self._append_json_schema(prompt, output_json)
             logger.debug(prompt)
 
@@ -426,5 +471,5 @@ class LLMFunc:
         return new_func
 
     def generate_llm_description(self, **kwargs):
-        pass
+        raise NotImplementedError
         # prompt = self.prompt_template.format(input_args)
