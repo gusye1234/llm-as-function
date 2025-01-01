@@ -27,15 +27,14 @@ from .utils import LimitAPICalling, clean_output_parse, generate_schema_prompt, 
 
 
 def model_factory(model_name: str) -> Literal["openai", "ollama"]:
-    if model_name.startswith("gpt"):
+    OPENAI_STARTS_WITH = ["gpt"]
+    OLLAMA_STARTS_WITH = ["llama", "krtkygpta/gemma2_tools", "qwq"]
+
+    if any(model_name.startswith(prefix) for prefix in OPENAI_STARTS_WITH):
         return "openai"
-    elif model_name.startswith("llama"):
+    elif any(model_name.startswith(prefix) for prefix in OLLAMA_STARTS_WITH):
         return "ollama"
     raise NotImplementedError(f"llm-as-function currently supports OpenAI models, not {model_name}")
-
-
-def does_model_not_support_tool_use(model_name: str):
-    return model_name in ["llama2", "llama3"]
 
 
 @dataclass
@@ -66,12 +65,13 @@ class LLMFunc:
     openai_base_url: str | None = None
     ollama_base_url: str | None = None
     async_max_time: int | None = None
+    has_tool_support: bool = False
     async_wait_time: float = 0.1
     runtime_options: RuntimeOptions = field(default_factory=empty_runtime_options)
 
     def __post_init__(self):
         assert self.parse_mode in ["error", "accept_raw",], f"Parse mode must in ['error', 'accept_raw'], not {self.parse_mode}"
-        self.config: LLMFuncConfig = LLMFuncConfig(model=self.model, temperature=self.temperature)
+        self.config: LLMFuncConfig = LLMFuncConfig(model=self.model, temperature=self.temperature, has_tool_support=self.has_tool_support)
         self.provider = model_factory(self.config["model"])
 
         self._bp_runtime_options = copy(self.runtime_options)
@@ -137,7 +137,7 @@ class LLMFunc:
         Some LLM's do not support tool architecture, and will raise an error (ModelDoesNotSupportToolUse) if you try to use this feature.
         """
         # MAYBE Rename to add_tool
-        if does_model_not_support_tool_use(self.config["model"]):
+        if not self.config["has_tool_support"]:
             raise ModelDoesNotSupportToolUse(self.config["model"])
 
         if self.provider not in ["openai", "ollama"]:

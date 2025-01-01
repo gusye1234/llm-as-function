@@ -15,6 +15,7 @@ class RuntimeOptions(TypedDict):
 class LLMFuncConfig(TypedDict):
     model: Required[str]
     temperature: Required[float]
+    has_tool_support: Required[bool]
 
 
 def empty_runtime_options() -> RuntimeOptions:
