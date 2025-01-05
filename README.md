@@ -223,6 +223,40 @@ async def async_call():
     print([r.unpack() for r in result])
 ```
 
+### Ollama Models Support
+
+`llm-as-function` supports various Ollama models with structured output capabilities:
+
+```python
+from llm_as_function import llama2_func
+from pydantic import BaseModel, Field
+
+class EmojiCharacter(BaseModel):
+    emoji: str = Field(description="The emoji character")
+    name: str = Field(description="Name of the emoji character")
+    personality: str = Field(description="Personality traits of the emoji")
+
+class EmojiStory(BaseModel):
+    character1: EmojiCharacter
+    character2: EmojiCharacter
+    plot: str = Field(description="A short story about the interaction between the two emojis")
+    moral: str = Field(description="The moral of the story")
+
+@llama2_func
+def generate_emoji_story(theme: str) -> EmojiStory:
+    """
+    Create a short story about two emoji characters based on the given theme.
+    The story should include their personalities and a moral lesson.
+    """
+    pass
+
+# Usage
+story = generate_emoji_story(theme="friendship")
+print(story.unpack())
+```
+
+All Ollama models (`llama2_func`, `llama3_func`, etc.) support structured output, and models like `llama3_1_func`, `llama3_3_func`, and `llama3_2_1b_func` also support tool calling functionality.
+
 More demos in `examples/`
 
 ## Docs
@@ -230,16 +264,29 @@ More demos in `examples/`
 `LLMFunc`
 
 ```python
-# LLMFunc currently support OpenAI provider
+# LLMFunc supports both OpenAI and Ollama providers
+
+# OpenAI configuration
 @LLMFunc(model="gpt-3.5-turbo-1106", temperature=0.3, openai_base_url=..., openai_api_key=...)
 def fool() -> Result:
     ...
 
------------------------------------------------------
-# For your convenience, llm-as-function already instantiated some LLMFunc
-from llm_as_function import gpt35_func, gpt4_func
+# Ollama configuration
+@LLMFunc(model="llama2", temperature=0.3, has_structured_output=True)
+def fool() -> Result:
+    ...
 
-@gpt35_func
+-----------------------------------------------------
+# For your convenience, llm-as-function already instantiated common LLMFunc providers
+from llm_as_function import (
+    # OpenAI models
+    gpt35_func, gpt4_func,
+    # Ollama models
+    llama2_func, llama3_func, llama3_1_func,
+    qwen2_1_5b_func
+)
+
+@gpt35_func  # or @llama2_func
 def fool() -> Result:
     pass
 -----------------------------------------------------
