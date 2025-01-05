@@ -28,5 +28,5 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.9",
-    install_requires=["rich", "openai", "pydantic"],
+    install_requires=["rich", "openai", "pydantic", "ollama"],
 )
