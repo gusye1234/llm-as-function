@@ -1,12 +1,11 @@
 import setuptools
 
-with open("readme.md", "r") as fh:
+with open("readme.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
-
 
 vars2find = ["__author__", "__version__", "__url__"]
 varsllm = {}
-with open("./llm_as_function/__init__.py") as f:
+with open("./llm_as_function/__init__.py", encoding="utf-8") as f:
     for line in f.readlines():
         for v in vars2find:
             if line.startswith(v):
