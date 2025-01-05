@@ -14,5 +14,5 @@ qwq_func = LLMFunc(temperature=0.1, model="krtkygpta/qwq", has_tool_support=True
 qwen2_1_5b_func = LLMFunc(temperature=0.1, model="qwen2:1.5b", has_tool_support=True, has_structured_output=True)  # This has tool support but i haven't be able to relabily use it
 
 __author__ = "Jianbai Ye"
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 __url__ = "https://github.com/gusye1234/llm-as-function"
