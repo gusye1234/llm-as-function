@@ -88,10 +88,10 @@ class LLMFunc:
 
         if self.provider == "openai":
             if self.openai_api_key is None:
-                logger.warning("OpenAI api key is not set, OPENAI_API_KEY env variable will be used instead")
+                logger.warning("OpenAI api key is not set, will try to use OPENAI_API_KEY env variable instead")
                 self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
 
-            assert self.openai_api_key != "", "You must have OpenAI api key input, or set OPENAI_API_KEY in your environment."
+            # assert self.openai_api_key != "", "You must have OpenAI api key input, or set OPENAI_API_KEY in your environment."
 
             self.openai_client = OpenAI(api_key=self.openai_api_key, base_url=self.openai_base_url)
             self.openai_async_client = AsyncOpenAI(api_key=self.openai_api_key, base_url=self.openai_base_url)
