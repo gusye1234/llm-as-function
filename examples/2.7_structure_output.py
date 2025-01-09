@@ -7,7 +7,7 @@ load_dotenv()
 
 from rich import print
 from pydantic import BaseModel, Field
-from llm_as_function import gpt35_func
+from llm_as_function import llama3_1_func
 
 
 class Reason(BaseModel):
@@ -25,7 +25,7 @@ class Result(BaseModel):
     emoji: StructuredOutput = Field(description="The emoji and its related information")
 
 
-@gpt35_func
+@llama3_1_func
 def fool() -> Result:  # type: ignore
     """
     You need to randomly output an emoji

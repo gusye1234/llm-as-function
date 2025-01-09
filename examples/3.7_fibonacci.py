@@ -7,7 +7,7 @@ sys.path.append("../")
 load_dotenv()
 
 from pydantic import BaseModel, Field
-from llm_as_function import gpt35_func, Final
+from llm_as_function import llama3_1_func, Final
 
 
 from time import sleep
@@ -17,7 +17,7 @@ class Result(BaseModel):
     value: int = Field(description="斐波那契数列计算的值")
 
 
-@gpt35_func
+@llama3_1_func
 def f(x: int) -> Result:
     """You need to calculate the {x}th term of the Fibonacci sequence.
     Given that you have the values of the two preceding terms, which are {a} and {b}. You calculate the {x}th term by adding the values of the two preceding terms. Please compute the value of the {x}th term.

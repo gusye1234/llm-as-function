@@ -1,6 +1,11 @@
-import asyncio
-from llm_as_function import gpt35_func
+import os
+import sys
+
+sys.path.append("../")
+os.environ["LEVEL"] = "DEBUG"
+from llm_as_function import llama3_1_func
 import json
+import asyncio
 from pydantic import BaseModel, Field
 
 
@@ -39,25 +44,30 @@ def get_current_time(request: GetCurrentTimeRequest):
     return json.dumps(time_info)
 
 
-def test_fn_calling():
-    @gpt35_func.func(get_current_weather).func(get_current_time)
-    def fool() -> Result:  # type: ignore
-        """Search the weather and current time of New York. And then summary the time and weather one sentence.
-        Be careful, you should not call the same function twice.
-        """
-        pass
+@llama3_1_func.func(get_current_weather).func(get_current_time)
+def fool() -> Result:  # type: ignore
+    """
+    Search the weather and current time of New York. And then summary the time and weather in one sentence.
+    Be careful, you should not call the same function twice.
+    """
+    pass
 
+
+@llama3_1_func.func(get_current_weather).func(get_current_time).async_call
+def fool2() -> Result:  # type: ignore
+    """
+    Search the weather and current time of New York. And then summary the time and weather in one sentence.
+    Be careful, you should not call the same function twice.
+    """
+    pass
+
+
+def fn_calling():
     result = fool().unpack()
     print(result)
-
-
-def test_fn_async_calling():
-    @gpt35_func.func(get_current_weather).func(get_current_time).async_call
-    def fool2() -> Result:  # type: ignore
-        """Search the weather and current time of New York. And then summary the time and weather one sentence.
-        Be careful, you should not call the same function twice.
-        """
-        pass
-
     result = asyncio.run(fool2()).unpack()  # type: ignore
     print(result)
+
+
+if __name__ == "__main__":
+    fn_calling()

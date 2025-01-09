@@ -28,7 +28,7 @@ def test_reset():
     original_func = copy(gpt35_func)
 
     @gpt35_func
-    def fool() -> Fool:
+    def fool() -> Fool:  # type: ignore
         """
         You need to randomly output an emoji
         """
@@ -38,7 +38,7 @@ def test_reset():
 
 def test_func_reset():
     @gpt35_func.func(get_current_weather)
-    def fool() -> Fool:
+    def fool() -> Fool:  # type: ignore
         """
         You need to randomly output an emoji
         """

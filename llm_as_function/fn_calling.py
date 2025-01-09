@@ -43,15 +43,15 @@ def parse_function(fn: Callable) -> Dict[str, Any]:
 
 def model_to_parameter_schema(model: Type[BaseModel]) -> Dict[str, Any]:
     formatted_json = resolve_refs(model.model_json_schema())
+
+    if not isinstance(formatted_json, dict):
+        raise ValueError(f"Expected 'formatted_json' to be of type 'dict' but it is of type '{type(formatted_json)}'")
+
     return {
         "type": "object",
         "properties": formatted_json["properties"],
         "required": formatted_json["required"],
     }
-
-
-def function_to_name(fn: Callable) -> str:
-    return fn.__name__
 
 
 def get_function_description(fn: Callable) -> str:

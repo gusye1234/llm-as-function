@@ -15,7 +15,7 @@ class Result(BaseModel):
 
 
 @gpt35_func.async_call
-def fool2(emotion) -> Result:
+def fool2(emotion) -> Result:  # type: ignore
     """
     You need to output an emoji, which is {emotion}
     """
@@ -25,9 +25,9 @@ def fool2(emotion) -> Result:
 async def async_call2():
     result = await asyncio.gather(
         *[
-            asyncio.create_task(fool2(emotion="happy")),
-            asyncio.create_task(fool2(emotion="sad")),
-            asyncio.create_task(fool2(emotion="weird")),
+            asyncio.create_task(fool2(emotion="happy")),  # type: ignore
+            asyncio.create_task(fool2(emotion="sad")),  # type: ignore
+            asyncio.create_task(fool2(emotion="weird")),  # type: ignore
         ]
     )
     print([r.unpack() for r in result])
@@ -37,11 +37,11 @@ async def async_call2():
 
 set_bound_func = LLMFunc(async_max_time=2)
 
-print(set_bound_func.async_funcs)
+print(set_bound_func.async_funcs)  # type: ignore
 
 
 @set_bound_func.async_call
-def fool3(emotion) -> Result:
+def fool3(emotion) -> Result:  # type: ignore
     """
     You need to output an emoji, which is {emotion}
     """
@@ -51,9 +51,9 @@ def fool3(emotion) -> Result:
 async def async_call3():
     result = await asyncio.gather(
         *[
-            asyncio.create_task(fool3(emotion="happy")),
-            asyncio.create_task(fool3(emotion="sad")),
-            asyncio.create_task(fool3(emotion="weird")),
+            asyncio.create_task(fool3(emotion="happy")),  # type: ignore
+            asyncio.create_task(fool3(emotion="sad")),  # type: ignore
+            asyncio.create_task(fool3(emotion="weird")),  # type: ignore
         ]
     )
     print([r.unpack() for r in result])
