@@ -19,7 +19,7 @@ def fool() -> Result:  # type: ignore
 
 
 @llama2_func
-def fool2(emotion) -> Result:  # type: ignore
+def fool2(emotion: str) -> Result:  # type: ignore
     """
     You need to randomly output an emoji, which should be {emotion}
     """

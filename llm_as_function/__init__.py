@@ -13,7 +13,14 @@ llama3_3_func = LLMFunc(temperature=0.1, model="llama3.3", has_tool_support=True
 llama3_2_1b_func = LLMFunc(temperature=0.1, model="llama3.2.1b", has_tool_support=True, has_structured_output=True)
 qwq_func = LLMFunc(temperature=0.1, model="krtkygpta/qwq", has_tool_support=True, has_structured_output=True)
 qwen2_1_5b_func = LLMFunc(temperature=0.1, model="qwen2:1.5b", has_tool_support=True, has_structured_output=True)  # This has tool support but i haven't be able to relabily use it
+deepseek_r1_1_5b_func = LLMFunc(temperature=0.1, model="deepseek-r1:1.5b", has_tool_support=True, has_structured_output=True)
+deepseek_r1_7b_func = LLMFunc(temperature=0.1, model="deepseek-r1:7b", has_tool_support=True, has_structured_output=True)
+deepseek_r1_8b_func = LLMFunc(temperature=0.1, model="deepseek-r1:8b", has_tool_support=True, has_structured_output=True)
+deepseek_r1_14b_func = LLMFunc(temperature=0.1, model="deepseek-r1:14b", has_tool_support=True, has_structured_output=True)
+deepseek_r1_32b_func = LLMFunc(temperature=0.1, model="deepseek-r1:32b", has_tool_support=True, has_structured_output=True)
+deepseek_r1_70b_func = LLMFunc(temperature=0.1, model="deepseek-r1:70b", has_tool_support=True, has_structured_output=True)
+deepseek_r1_671b_func = LLMFunc(temperature=0.1, model="deepseek-r1:671b", has_tool_support=True, has_structured_output=True)
 
 __author__ = "Jianbai Ye"
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 __url__ = "https://github.com/gusye1234/llm-as-function"
