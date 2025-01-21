@@ -38,7 +38,7 @@ T = TypeVar("T")
 
 def model_factory(model_name: str) -> Literal["openai", "ollama"]:
     OPENAI_STARTS_WITH = ["gpt"]
-    OLLAMA_STARTS_WITH = ["llama", "krtkygpta/qwq", "qwen"]
+    OLLAMA_STARTS_WITH = ["llama", "krtkygpta/qwq", "qwen", "deepseek"]
 
     if any(model_name.startswith(prefix) for prefix in OPENAI_STARTS_WITH):
         return "openai"
