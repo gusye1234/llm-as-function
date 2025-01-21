@@ -15,7 +15,7 @@ class Result(BaseModel):
 
 
 @gpt35_func.async_call
-def fool2(emotion) -> Result:  # type: ignore
+def fool2(emotion: str) -> Result:  # type: ignore
     """
     You need to output an emoji, which is {emotion}
     """
@@ -41,7 +41,7 @@ print(set_bound_func.async_funcs)  # type: ignore
 
 
 @set_bound_func.async_call
-def fool3(emotion) -> Result:  # type: ignore
+def fool3(emotion: str) -> Result:  # type: ignore
     """
     You need to output an emoji, which is {emotion}
     """

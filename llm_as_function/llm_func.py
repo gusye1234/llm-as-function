@@ -3,8 +3,15 @@ import json
 from copy import copy
 from dataclasses import dataclass, field
 from functools import wraps
+import sys
 import os
-from typing import Literal
+
+# For version 3.9 typing_extensions is required
+if sys.version_info >= (3, 9):
+    from typing import ParamSpec, Callable, Literal, TypeVar, Coroutine, Any
+else:
+    from typing import Callable, Literal, TypeVar
+    from typing_extensions import ParamSpec
 
 import ollama
 from openai import AsyncOpenAI, OpenAI
@@ -24,6 +31,9 @@ from .models import (
     ollama_single_create,
 )
 from .utils import LimitAPICalling, clean_output_parse, generate_schema_prompt, logger
+
+P = ParamSpec("P")
+T = TypeVar("T")
 
 
 def model_factory(model_name: str) -> Literal["openai", "ollama"]:
@@ -215,7 +225,7 @@ class LLMFunc:
             self.fn_callings,
         )
 
-    def _fill_prompt(self, kwargs: dict, local_var: Final | dict, prompt_template: str) -> Final | str:
+    def _fill_prompt(self, kwargs: dict, local_var: object | Final | dict, prompt_template: str) -> Final | str:
         """Fills the prompt template with the given kwargs and local_var, if local_var is a Final object, it will return the object"""
         if local_var is not None:
             if isinstance(local_var, Final):
@@ -475,7 +485,7 @@ class LLMFunc:
         append_prompt = get_json_schema_prompt(self.provider, self.model).format(json_schema=output_json)
         return prompt + append_prompt
 
-    def __call__(self, func):
+    def __call__(self, func: Callable[P, object]) -> Callable[P, Final]:
         # parse input
         (
             prompt_template,
@@ -487,9 +497,9 @@ class LLMFunc:
 
         self.reset()
 
-        @ wraps(func)
-        def new_func(**kwargs):
-            local_var = func(**kwargs)
+        @wraps(func)
+        def new_func(*args: P.args, **kwargs: P.kwargs) -> Final:
+            local_var = func(*args, **kwargs)
             logger.debug(f"[Variables] function args:{kwargs}, local vars: {local_var}")
 
             prompt = self._fill_prompt(kwargs, local_var, prompt_template)
@@ -523,7 +533,7 @@ class LLMFunc:
 
         return new_func
 
-    def async_call(self, func):
+    def async_call(self, func: Callable[P, object]) -> Callable[P, Coroutine[Any, Any, Final]]:
         (
             prompt_template,
             output_json,
@@ -534,12 +544,12 @@ class LLMFunc:
 
         self.reset()
 
-        @ wraps(func)
-        async def new_func(**kwargs):
+        @wraps(func)
+        async def new_func(*args: P.args, **kwargs: P.kwargs) -> Final:
             if inspect.iscoroutinefunction(func):
-                local_var = await func(**kwargs)
+                local_var = await func(*args, **kwargs)
             else:
-                local_var = func(**kwargs)
+                local_var = func(*args, **kwargs)
             logger.debug(f"[Variables] function args:{kwargs}, local vars: {local_var}")
 
             prompt = self._fill_prompt(kwargs, local_var, prompt_template)
